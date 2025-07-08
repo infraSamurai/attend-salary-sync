@@ -1,4 +1,6 @@
-import { useState } from "react";
+import React from "react";
+import { useState, useEffect } from "react";
+import localforage from "localforage";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAttendanceLogic } from "@/hooks/useAttendanceLogic";
@@ -15,20 +17,15 @@ const AttendanceCalendar = () => {
     { date: new Date(2024, 9, 31).toISOString(), name: "Diwali", type: "festival" },
     { date: new Date(2024, 2, 13).toISOString(), name: "Holi", type: "festival" },
   ]);
-  
-  // Mock teachers data - in real app this would come from props or context
-  const teachers: Teacher[] = [
-    { id: "1", name: "Sarah Johnson", designation: "Mathematics", photo: "/placeholder.svg" },
-    { id: "2", name: "Michael Chen", designation: "Science" },
-    { id: "3", name: "Emily Davis", designation: "English" },
-    { id: "4", name: "Robert Wilson", designation: "History" },
-    { id: "5", name: "Lisa Anderson", designation: "Physics" },
-    { id: "6", name: "David Brown", designation: "Chemistry" },
-    { id: "7", name: "Maria Garcia", designation: "Spanish" },
-    { id: "8", name: "James Miller", designation: "PE" },
-    { id: "9", name: "Anna Taylor", designation: "Art" },
-    { id: "10", name: "Kevin Lee", designation: "Music" },
-  ];
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    localforage.getItem<Teacher[]>("teachers").then((data) => {
+      setTeachers(data || []);
+      setLoading(false);
+    });
+  }, []);
 
   const {
     days,
@@ -47,6 +44,8 @@ const AttendanceCalendar = () => {
     newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
     setCurrentDate(newDate);
   };
+
+  if (loading) return <div>Loading teachers...</div>;
 
   return (
     <div className="space-y-6">

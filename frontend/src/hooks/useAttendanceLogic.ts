@@ -1,8 +1,21 @@
 import { useState, useEffect } from "react";
 import { AttendanceRecord, Holiday, Teacher, DayInfo } from "@/types/attendance";
+import localforage from "localforage";
 
 export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], currentDate: Date) => {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+
+  // Load attendance from localForage on mount
+  useEffect(() => {
+    localforage.getItem<AttendanceRecord[]>("attendance").then((data) => {
+      if (data) setAttendance(data);
+    });
+  }, []);
+
+  // Save attendance to localForage whenever it changes
+  useEffect(() => {
+    localforage.setItem("attendance", attendance);
+  }, [attendance]);
 
   const getDaysInMonth = (date: Date): DayInfo[] => {
     const year = date.getFullYear();

@@ -1,8 +1,32 @@
-# Welcome to your Lovable project
+# Attend Salary Sync
 
 ## Project info
 
 **URL**: https://lovable.dev/projects/4f8ae33e-6e84-439c-94b8-e648734b1e41
+
+## Project Structure
+
+```
+attend-salary-sync/
+  frontend/           # All frontend code (React, components, pages, hooks, types, etc.)
+    src/
+      components/
+      pages/
+      hooks/
+      types/
+      lib/
+      App.tsx
+      App.css
+      index.css
+      main.tsx
+      vite-env.d.ts
+    public/
+    index.html
+    ...
+  backend/            # (To be implemented)
+  package.json
+  ...
+```
 
 ## How can I edit this code?
 

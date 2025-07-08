@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
+import localforage from "localforage";
 import { Calculator, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,38 +32,84 @@ interface SalaryData {
 }
 
 const SalaryCalculator = () => {
-  const [selectedMonth, setSelectedMonth] = useState("2024-01");
-  
-  // Sample salary data
-  const salaryData: SalaryData[] = [
-    {
-      teacherId: "1",
-      teacherName: "Sarah Johnson",
-      baseSalary: 45000,
-      daysPresent: 28,
-      daysAbsent: 2,
-      computedSalary: 42000,
-      deductions: 3000
-    },
-    {
-      teacherId: "2",
-      teacherName: "Michael Chen",
-      baseSalary: 48000,
-      daysPresent: 30,
-      daysAbsent: 0,
-      computedSalary: 48000,
-      deductions: 0
-    },
-    {
-      teacherId: "3",
-      teacherName: "Emily Davis",
-      baseSalary: 42000,
-      daysAbsent: 3,
-      daysPresent: 27,
-      computedSalary: 37800,
-      deductions: 4200
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [salaryData, setSalaryData] = useState<any[]>([]);
+
+  useEffect(() => {
+    localforage.getItem("teachers").then((data) => setTeachers(data || []));
+    localforage.getItem("attendance").then((data) => setAttendance(data || []));
+  }, []);
+
+  useEffect(() => {
+    // Compute salary data for the selected month
+    if (!teachers.length) return;
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const daysInMonth = 30; // Always use 30 days for salary calculation
+    // Build a list of all days in the month
+    const allDays: Date[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      allDays.push(new Date(year, month - 1, day));
     }
-  ];
+    const monthAttendance = attendance.filter((a: any) => {
+      const d = new Date(a.date);
+      return d.getFullYear() === year && d.getMonth() + 1 === month;
+    });
+    const data = teachers.map((teacher: any) => {
+      // For each day, determine status
+      let daysPresent = 0;
+      let daysAbsent = 0;
+      let daysLeave = 0;
+      for (const day of allDays) {
+        const isSunday = day.getDay() === 0;
+        const record = monthAttendance.find((a: any) => a.teacherId === teacher.id && new Date(a.date).toDateString() === day.toDateString());
+        if (isSunday) {
+          // If there is an explicit absent record for Sunday, count as absent
+          if (record && record.status === 'absent') {
+            daysAbsent++;
+          } else {
+            daysPresent++;
+          }
+        } else {
+          // For non-Sundays, present or late count as present, absent as absent
+          if (record && (record.status === 'present' || record.status === 'late')) {
+            daysPresent++;
+          } else {
+            daysAbsent++;
+          }
+        }
+      }
+      // 1 leave allowed per month (first absent is leave, not deducted)
+      if (daysAbsent > 0) {
+        daysLeave = 1;
+        daysAbsent = daysAbsent - 1;
+      }
+      // Bonus: if no absents or leaves, add 1 day salary
+      let bonus = 0;
+      if (daysAbsent === 0 && daysLeave === 0) {
+        bonus = 1;
+      }
+      const dailyWage = teacher.baseSalary ? teacher.baseSalary / 30 : 0;
+      const computedSalary = dailyWage * (daysPresent + bonus) + dailyWage * daysLeave; // leave is paid, bonus is paid
+      const deductions = dailyWage * daysAbsent;
+      return {
+        teacherId: teacher.id,
+        teacherName: teacher.name,
+        baseSalary: teacher.baseSalary || 0,
+        daysPresent,
+        daysAbsent,
+        daysLeave,
+        bonus,
+        computedSalary: Math.round(computedSalary),
+        deductions: Math.round(deductions)
+      };
+    });
+    setSalaryData(data);
+  }, [teachers, attendance, selectedMonth]);
 
   const months = [
     { value: "2024-01", label: "January 2024" },
@@ -170,6 +217,8 @@ const SalaryCalculator = () => {
                   <TableHead>Deductions</TableHead>
                   <TableHead>Net Salary</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Leave</TableHead>
+                  <TableHead>Bonus</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -208,6 +257,8 @@ const SalaryCalculator = () => {
                           {attendancePercentage.toFixed(0)}%
                         </Badge>
                       </TableCell>
+                      <TableCell>{data.daysLeave}</TableCell>
+                      <TableCell>{data.bonus}</TableCell>
                     </TableRow>
                   );
                 })}

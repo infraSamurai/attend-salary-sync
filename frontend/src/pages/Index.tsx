@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeacherManagement from "@/components/TeacherManagement";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import SalaryCalculator from "@/components/SalaryCalculator";
+import React from "react";
+import localforage from "localforage";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("attendance");
@@ -26,10 +28,48 @@ const Index = () => {
                 <p className="text-sm text-gray-500">Attendance & Salary Management</p>
               </div>
             </div>
-            <Button variant="outline" size="sm">
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={async () => {
+                // Export all localForage data
+                const keys = await localforage.keys();
+                const exportData: Record<string, any> = {};
+                for (const key of keys) {
+                  exportData[key] = await localforage.getItem(key);
+                }
+                const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'attendsync-backup.json';
+                link.click();
+                URL.revokeObjectURL(url);
+              }}>
+                Export Backup
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                // Import localForage data
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'application/json';
+                fileInput.onchange = async (event: any) => {
+                  const file = event.target.files[0];
+                  if (!file) return;
+                  const text = await file.text();
+                  const importedData = JSON.parse(text);
+                  for (const key in importedData) {
+                    await localforage.setItem(key, importedData[key]);
+                  }
+                  alert('Data restored! Please refresh the page.');
+                };
+                fileInput.click();
+              }}>
+                Import Backup
+              </Button>
+              <Button variant="outline" size="sm">
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Button>
+            </div>
           </div>
         </div>
       </header>

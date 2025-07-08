@@ -1,5 +1,7 @@
 
-import { useState } from "react";
+import React from "react";
+import { useState, useEffect } from "react";
+import localforage from "localforage";
 import { Plus, Edit, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,36 +29,21 @@ interface Teacher {
 }
 
 const TeacherManagement = () => {
-  const [teachers, setTeachers] = useState<Teacher[]>([
-    {
-      id: "1",
-      name: "Sarah Johnson",
-      designation: "Mathematics Teacher",
-      baseSalary: 45000,
-      joinDate: "2023-01-15",
-      contact: "+1-234-567-8901",
-      photo: "/placeholder.svg"
-    },
-    {
-      id: "2",
-      name: "Michael Chen",
-      designation: "Science Teacher",
-      baseSalary: 48000,
-      joinDate: "2023-03-10",
-      contact: "+1-234-567-8902"
-    },
-    {
-      id: "3",
-      name: "Emily Davis",
-      designation: "English Teacher",
-      baseSalary: 42000,
-      joinDate: "2023-02-20",
-      contact: "+1-234-567-8903"
-    }
-  ]);
-
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
+  // Load teachers from localForage on mount
+  useEffect(() => {
+    localforage.getItem<Teacher[]>("teachers").then((data) => {
+      if (data) setTeachers(data);
+    });
+  }, []);
+
+  // Save teachers to localForage whenever they change
+  useEffect(() => {
+    localforage.setItem("teachers", teachers);
+  }, [teachers]);
 
   const filteredTeachers = teachers.filter(teacher =>
     teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -64,12 +51,14 @@ const TeacherManagement = () => {
   );
 
   const handleAddTeacher = (teacherData: Omit<Teacher, "id">) => {
-    const newTeacher = {
-      ...teacherData,
-      id: Date.now().toString()
-    };
-    setTeachers([...teachers, newTeacher]);
-    setIsAddDialogOpen(false);
+    // Use a counter for unique IDs
+    localforage.getItem<number>("teacher_id_counter").then((counter) => {
+      const newId = (counter || 1).toString();
+      const newTeacher = { ...teacherData, id: newId };
+      setTeachers((prev) => [...prev, newTeacher]);
+      localforage.setItem("teacher_id_counter", (counter || 1) + 1);
+      setIsAddDialogOpen(false);
+    });
   };
 
   const handleDeleteTeacher = (id: string) => {
