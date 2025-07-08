@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Check, X, Users, Calendar as CalendarIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight, Check, X, Users, Calendar as CalendarIcon, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import HolidayManager from "./HolidayManager";
 
 interface Teacher {
   id: string;
@@ -25,6 +26,12 @@ interface AttendanceRecord {
   teacherId: string;
   date: string;
   isPresent: boolean;
+}
+
+interface Holiday {
+  date: string;
+  name: string;
+  type: 'festival' | 'school';
 }
 
 const AttendanceCalendar = () => {
@@ -46,6 +53,10 @@ const AttendanceCalendar = () => {
   ];
 
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([
+    { date: new Date(2024, 9, 31).toISOString(), name: "Diwali", type: "festival" },
+    { date: new Date(2024, 2, 13).toISOString(), name: "Holi", type: "festival" },
+  ]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -155,10 +166,91 @@ const AttendanceCalendar = () => {
     return { totalWorkingDays, attendanceRate: Math.round(attendanceRate) };
   };
 
+  // Check if a date is a holiday
+  const isHoliday = (date: Date) => {
+    return holidays.some(holiday => 
+      new Date(holiday.date).toDateString() === date.toDateString()
+    );
+  };
+
+  // Apply special attendance rules
+  useEffect(() => {
+    const applySpecialRules = () => {
+      const updated = [...attendance];
+      let hasChanges = false;
+
+      teachers.forEach(teacher => {
+        // Rule: If absent on Saturday and Monday, mark Sunday as absent too
+        days.forEach(day => {
+          if (day.date.getDay() === 6) { // Saturday
+            const satDate = day.date;
+            const sunDate = new Date(satDate);
+            sunDate.setDate(sunDate.getDate() + 1);
+            const monDate = new Date(satDate);
+            monDate.setDate(monDate.getDate() + 2);
+
+            const satAttendance = getAttendanceStatus(teacher.id, satDate);
+            const monAttendance = getAttendanceStatus(teacher.id, monDate);
+
+            if (satAttendance === false && monAttendance === false) {
+              // Mark Sunday as absent (even though it's normally off)
+              const sunRecord = updated.find(a => 
+                a.teacherId === teacher.id && 
+                new Date(a.date).toDateString() === sunDate.toDateString()
+              );
+              
+              if (!sunRecord) {
+                updated.push({
+                  teacherId: teacher.id,
+                  date: sunDate.toISOString(),
+                  isPresent: false
+                });
+                hasChanges = true;
+              }
+            }
+          }
+        });
+
+        // Rule: Holiday days count as present (unless Sunday)
+        days.forEach(day => {
+          if (isHoliday(day.date) && !day.isSunday) {
+            const existingRecord = updated.find(a => 
+              a.teacherId === teacher.id && 
+              new Date(a.date).toDateString() === day.date.toDateString()
+            );
+
+            if (!existingRecord) {
+              updated.push({
+                teacherId: teacher.id,
+                date: day.date.toISOString(),
+                isPresent: true
+              });
+              hasChanges = true;
+            } else if (!existingRecord.isPresent) {
+              existingRecord.isPresent = true;
+              hasChanges = true;
+            }
+          }
+        });
+      });
+
+      if (hasChanges) {
+        setAttendance(updated);
+      }
+    };
+
+    applySpecialRules();
+  }, [attendance.length, holidays]); // Only run when attendance records count changes or holidays change
+
   const stats = getMonthStats();
 
   return (
     <div className="space-y-6">
+      <HolidayManager 
+        holidays={holidays} 
+        onHolidaysChange={setHolidays}
+        currentMonth={currentDate}
+      />
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
@@ -255,48 +347,56 @@ const AttendanceCalendar = () => {
                         </div>
                       </div>
                     </TableCell>
-                    {days.map((day) => {
-                      const isPresent = getAttendanceStatus(teacher.id, day.date);
-                      const isSunday = day.isSunday;
-                      
-                      return (
-                        <TableCell key={day.dayNumber} className="text-center p-2">
-                          {isSunday ? (
-                            <div className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded text-xs text-gray-500">
-                              OFF
-                            </div>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`w-10 h-10 rounded-full p-0 ${
-                                isPresent === true
-                                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                  : isPresent === false
-                                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                  : 'hover:bg-gray-100'
-                              }`}
-                              onClick={() => toggleAttendance(teacher.id, day.date)}
-                            >
-                              {isPresent === true ? (
-                                <Check className="w-4 h-4" />
-                              ) : isPresent === false ? (
-                                <X className="w-4 h-4" />
-                              ) : (
-                                <span className="text-xs text-gray-400">-</span>
-                              )}
-                            </Button>
-                          )}
-                        </TableCell>
-                      );
-                    })}
+                     {days.map((day) => {
+                       const isPresent = getAttendanceStatus(teacher.id, day.date);
+                       const isSunday = day.isSunday;
+                       const isHolidayDay = isHoliday(day.date);
+                       
+                       return (
+                         <TableCell key={day.dayNumber} className="text-center p-1 sm:p-2">
+                           {isSunday ? (
+                             <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-gray-100 rounded text-xs text-gray-500">
+                               OFF
+                             </div>
+                           ) : isHolidayDay ? (
+                             <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800 relative">
+                               🎉
+                               {isPresent === false && (
+                                 <AlertCircle className="w-2 h-2 absolute -top-1 -right-1 text-red-500" />
+                               )}
+                             </div>
+                           ) : (
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full p-0 touch-manipulation ${
+                                 isPresent === true
+                                   ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                   : isPresent === false
+                                   ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                   : 'hover:bg-gray-100'
+                               }`}
+                               onClick={() => toggleAttendance(teacher.id, day.date)}
+                             >
+                               {isPresent === true ? (
+                                 <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                               ) : isPresent === false ? (
+                                 <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                               ) : (
+                                 <span className="text-xs text-gray-400">-</span>
+                               )}
+                             </Button>
+                           )}
+                         </TableCell>
+                       );
+                     })}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
+          <div className="mt-4 flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 bg-green-100 rounded flex items-center justify-center">
                 <Check className="w-3 h-3 text-green-700" />
@@ -308,6 +408,12 @@ const AttendanceCalendar = () => {
                 <X className="w-3 h-3 text-red-700" />
               </div>
               <span>Absent</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded flex items-center justify-center text-xs">
+                🎉
+              </div>
+              <span>Holiday (Auto Present)</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-500">
