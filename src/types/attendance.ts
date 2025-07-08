@@ -8,7 +8,7 @@ export interface Teacher {
 export interface AttendanceRecord {
   teacherId: string;
   date: string;
-  isPresent: boolean;
+  status: 'present' | 'absent' | 'late';
 }
 
 export interface Holiday {

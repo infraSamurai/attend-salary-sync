@@ -67,7 +67,7 @@ const AttendanceCalendar = () => {
                 Mark daily attendance for all teachers
               </CardDescription>
             </div>
-            <AttendanceStats teachers={teachers} attendanceRate={stats.attendanceRate} />
+            <AttendanceStats teachers={teachers} attendanceRate={stats.attendanceRate} totalLate={stats.totalLate} />
           </div>
         </CardHeader>
         <CardContent>

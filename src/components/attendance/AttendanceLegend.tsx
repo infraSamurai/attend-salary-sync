@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-react";
+import { Check, X, Clock } from "lucide-react";
 
 const AttendanceLegend = () => {
   return (
@@ -8,6 +8,12 @@ const AttendanceLegend = () => {
           <Check className="w-3 h-3 text-green-700" />
         </div>
         <span>Present</span>
+      </div>
+      <div className="flex items-center space-x-2">
+        <div className="w-4 h-4 bg-yellow-100 rounded flex items-center justify-center">
+          <Clock className="w-3 h-3 text-yellow-700" />
+        </div>
+        <span>Late</span>
       </div>
       <div className="flex items-center space-x-2">
         <div className="w-4 h-4 bg-red-100 rounded flex items-center justify-center">

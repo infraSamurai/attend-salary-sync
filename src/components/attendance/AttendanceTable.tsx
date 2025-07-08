@@ -1,4 +1,4 @@
-import { Check, X, AlertCircle } from "lucide-react";
+import { Check, X, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -14,7 +14,7 @@ import { Teacher, DayInfo } from "@/types/attendance";
 interface AttendanceTableProps {
   teachers: Teacher[];
   days: DayInfo[];
-  getAttendanceStatus: (teacherId: string, date: Date) => boolean | undefined;
+  getAttendanceStatus: (teacherId: string, date: Date) => 'present' | 'absent' | 'late' | undefined;
   toggleAttendance: (teacherId: string, date: Date) => void;
   markAllPresentForDay: (date: Date) => void;
   markAllAbsentForDay: (date: Date) => void;
@@ -88,7 +88,7 @@ const AttendanceTable = ({
                 </div>
               </TableCell>
               {days.map((day) => {
-                const isPresent = getAttendanceStatus(teacher.id, day.date);
+                const status = getAttendanceStatus(teacher.id, day.date);
                 const isSunday = day.isSunday;
                 const isHolidayDay = isHoliday(day.date);
                 
@@ -101,7 +101,7 @@ const AttendanceTable = ({
                     ) : isHolidayDay ? (
                       <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800 relative">
                         🎉
-                        {isPresent === false && (
+                        {status === 'absent' && (
                           <AlertCircle className="w-2 h-2 absolute -top-1 -right-1 text-red-500" />
                         )}
                       </div>
@@ -110,17 +110,22 @@ const AttendanceTable = ({
                         variant="ghost"
                         size="sm"
                         className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full p-0 touch-manipulation ${
-                          isPresent === true
+                          status === 'present'
                             ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                            : isPresent === false
+                            : status === 'late'
+                            ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                            : status === 'absent'
                             ? 'bg-red-100 text-red-700 hover:bg-red-200'
                             : 'hover:bg-gray-100'
                         }`}
                         onClick={() => toggleAttendance(teacher.id, day.date)}
+                        title={status === 'late' ? 'Late arrival' : status || 'Not marked'}
                       >
-                        {isPresent === true ? (
+                        {status === 'present' ? (
                           <Check className="w-3 h-3 sm:w-4 sm:h-4" />
-                        ) : isPresent === false ? (
+                        ) : status === 'late' ? (
+                          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+                        ) : status === 'absent' ? (
                           <X className="w-3 h-3 sm:w-4 sm:h-4" />
                         ) : (
                           <span className="text-xs text-gray-400">-</span>

@@ -35,7 +35,7 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
     const record = attendance.find(
       a => a.teacherId === teacherId && new Date(a.date).toDateString() === dateString
     );
-    return record?.isPresent;
+    return record?.status;
   };
 
   const toggleAttendance = (teacherId: string, date: Date) => {
@@ -46,13 +46,21 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
 
     if (existingIndex >= 0) {
       const updated = [...attendance];
-      updated[existingIndex].isPresent = !updated[existingIndex].isPresent;
+      const current = updated[existingIndex].status;
+      // Cycle: absent -> present -> late -> absent
+      if (current === 'absent') {
+        updated[existingIndex].status = 'present';
+      } else if (current === 'present') {
+        updated[existingIndex].status = 'late';
+      } else {
+        updated[existingIndex].status = 'absent';
+      }
       setAttendance(updated);
     } else {
       setAttendance([...attendance, {
         teacherId,
         date: dateString,
-        isPresent: true
+        status: 'present'
       }]);
     }
   };
@@ -67,12 +75,12 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
       );
       
       if (existingIndex >= 0) {
-        updated[existingIndex].isPresent = true;
+        updated[existingIndex].status = 'present';
       } else {
         updated.push({
           teacherId: teacher.id,
           date: dateString,
-          isPresent: true
+          status: 'present'
         });
       }
     });
@@ -90,12 +98,12 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
       );
       
       if (existingIndex >= 0) {
-        updated[existingIndex].isPresent = false;
+        updated[existingIndex].status = 'absent';
       } else {
         updated.push({
           teacherId: teacher.id,
           date: dateString,
-          isPresent: false
+          status: 'absent'
         });
       }
     });
@@ -106,10 +114,11 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
   const getMonthStats = () => {
     const totalWorkingDays = days.filter(d => !d.isSunday).length;
     const totalPossibleAttendance = teachers.length * totalWorkingDays;
-    const totalPresent = attendance.filter(a => a.isPresent).length;
+    const totalPresent = attendance.filter(a => a.status === 'present' || a.status === 'late').length;
+    const totalLate = attendance.filter(a => a.status === 'late').length;
     const attendanceRate = totalPossibleAttendance > 0 ? (totalPresent / totalPossibleAttendance) * 100 : 0;
     
-    return { totalWorkingDays, attendanceRate: Math.round(attendanceRate) };
+    return { totalWorkingDays, attendanceRate: Math.round(attendanceRate), totalLate };
   };
 
   // Apply special attendance rules
@@ -131,7 +140,7 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
             const satAttendance = getAttendanceStatus(teacher.id, satDate);
             const monAttendance = getAttendanceStatus(teacher.id, monDate);
 
-            if (satAttendance === false && monAttendance === false) {
+            if (satAttendance === 'absent' && monAttendance === 'absent') {
               // Mark Sunday as absent (even though it's normally off)
               const sunRecord = updated.find(a => 
                 a.teacherId === teacher.id && 
@@ -142,7 +151,7 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
                 updated.push({
                   teacherId: teacher.id,
                   date: sunDate.toISOString(),
-                  isPresent: false
+                  status: 'absent'
                 });
                 hasChanges = true;
               }
@@ -162,11 +171,11 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
               updated.push({
                 teacherId: teacher.id,
                 date: day.date.toISOString(),
-                isPresent: true
+                status: 'present'
               });
               hasChanges = true;
-            } else if (!existingRecord.isPresent) {
-              existingRecord.isPresent = true;
+            } else if (existingRecord.status === 'absent') {
+              existingRecord.status = 'present';
               hasChanges = true;
             }
           }

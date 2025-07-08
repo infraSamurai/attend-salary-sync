@@ -5,9 +5,10 @@ import { Teacher } from "@/types/attendance";
 interface AttendanceStatsProps {
   teachers: Teacher[];
   attendanceRate: number;
+  totalLate: number;
 }
 
-const AttendanceStats = ({ teachers, attendanceRate }: AttendanceStatsProps) => {
+const AttendanceStats = ({ teachers, attendanceRate, totalLate }: AttendanceStatsProps) => {
   return (
     <div className="flex items-center space-x-2">
       <Badge variant="secondary">
@@ -17,6 +18,11 @@ const AttendanceStats = ({ teachers, attendanceRate }: AttendanceStatsProps) => 
       <Badge variant="outline">
         {attendanceRate}% Present
       </Badge>
+      {totalLate > 0 && (
+        <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700">
+          {totalLate} Late
+        </Badge>
+      )}
     </div>
   );
 };
