@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar, Users, Calculator, FileText, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +9,35 @@ import AttendanceCalendar from "@/components/AttendanceCalendar";
 import SalaryCalculator from "@/components/SalaryCalculator";
 import Reports from "@/components/Reports";
 import SettingsDialog from "@/components/SettingsDialog";
+import DataLoader from "@/components/DataLoader";
 import React from "react";
 import localforage from "localforage";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("attendance");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasData, setHasData] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    checkForData();
+  }, []);
+
+  const checkForData = async () => {
+    try {
+      const teachers = await localforage.getItem("teachers");
+      const attendance = await localforage.getItem("attendance");
+      
+      if ((teachers && Array.isArray(teachers) && teachers.length > 0) || 
+          (attendance && Array.isArray(attendance) && attendance.length > 0)) {
+        setHasData(true);
+      } else {
+        setHasData(false);
+      }
+    } catch (error) {
+      console.error("Error checking for data:", error);
+      setHasData(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -79,7 +102,14 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        {/* Show DataLoader if no data is found */}
+        {hasData === false && (
+          <DataLoader />
+        )}
+        
+        {/* Show main app if data exists or still checking */}
+        {hasData !== false && (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4">
             <TabsTrigger value="attendance" className="flex items-center space-x-2">
               <Calendar className="w-4 h-4" />
@@ -115,6 +145,7 @@ const Index = () => {
             <Reports />
           </TabsContent>
         </Tabs>
+        )}
       </main>
 
       {/* Settings Dialog */}
