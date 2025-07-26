@@ -56,7 +56,7 @@ export function requireRole(allowedRoles: string[]) {
   };
 }
 
-export function withAuth(handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<void>, allowedRoles?: string[]) {
+export function withAuth(handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<void | VercelResponse>, allowedRoles?: string[]) {
   return async (req: AuthenticatedRequest, res: VercelResponse) => {
     // Authenticate token
     const authResult = authenticateToken(req, res);
@@ -69,6 +69,6 @@ export function withAuth(handler: (req: AuthenticatedRequest, res: VercelRespons
     }
 
     // Call the actual handler
-    return handler(req, res);
+    await handler(req, res);
   };
 }

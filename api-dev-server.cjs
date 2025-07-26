@@ -10,12 +10,12 @@ app.use(express.json());
 
 const JWT_SECRET = 'dev-secret-change-in-production';
 
-// Mock users with School2024 password
+// Mock users for development
 const users = [
   {
     id: '1',
     username: 'admin',
-    password: '$2a$10$czMySDCWNGxHXLytVEuSPuwKm5djnsKzkTyaFFf6lQzflPy1tkkt.', // Adm1n@S3cur3$24
+    password: '$2a$10$w/Tapc6eGFtvZaGvSLYY6e8jnniF5REP1qmdsYb7F5fMABAsZ9WNi',
     role: 'admin',
     name: 'Administrator',
     email: 'admin@school.com',
@@ -25,7 +25,7 @@ const users = [
   {
     id: '2',
     username: 'manager',
-    password: '$2a$10$zH1p.I2gs99wE7FWicCGq.ovn7myMD3gT2pXQ4gdDRzYJAbq7Ehwe', // TeamLeader
+    password: '$2a$10$zH1p.I2gs99wE7FWicCGq.ovn7myMD3gT2pXQ4gdDRzYJAbq7Ehwe',
     role: 'manager',
     name: 'Manager User',
     email: 'manager@school.com',
@@ -35,7 +35,7 @@ const users = [
   {
     id: '3',
     username: 'viewer',
-    password: '$2a$10$SbtpYG17EV7UDe5hnnlKceuQ36ZZFgB4MhFJlll8x/9Ne6kHJqcxu', // ReadOnly24
+    password: '$2a$10$SbtpYG17EV7UDe5hnnlKceuQ36ZZFgB4MhFJlll8x/9Ne6kHJqcxu',
     role: 'viewer',
     name: 'Viewer User',
     email: 'viewer@school.com',

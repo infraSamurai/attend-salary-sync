@@ -78,10 +78,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ## 🔐 Production Security
 
 ### User Accounts
-The system includes these default accounts:
-- **admin** / **Adm1n@S3cur3$24** (full access - 14 chars, super secure)
-- **manager** / **TeamLeader** (limited admin access - 10 chars, memorable)
-- **viewer** / **ReadOnly24** (read-only access - 10 chars, memorable)
+The system includes default accounts for each role:
+- **admin** (full access to all sections)
+- **manager** (attendance management only)
+- **viewer** (attendance view only)
+
+Contact your system administrator for login credentials.
 
 ### Security Notes
 - Demo credentials are hidden in production

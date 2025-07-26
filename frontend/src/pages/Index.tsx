@@ -142,7 +142,7 @@ const Index = () => {
         {/* Show main app if data exists or still checking */}
         {hasData !== false && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full lg:w-auto">
+          <TabsList className="flex flex-wrap justify-start w-full lg:w-auto gap-1">
             {hasPermission('read_attendance') && (
               <TabsTrigger value="attendance" className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4" />

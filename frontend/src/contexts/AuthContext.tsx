@@ -118,8 +118,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Define permission mappings based on roles
     const permissions: Record<string, string[]> = {
       admin: ['read_teachers', 'write_teachers', 'read_attendance', 'write_attendance', 'read_reports', 'read_salary', 'manage_users', 'manage_settings'],
-      manager: ['read_teachers', 'read_attendance', 'write_attendance', 'read_reports', 'read_salary'],
-      viewer: ['read_teachers_basic', 'read_attendance'],
+      manager: ['read_attendance', 'write_attendance'],
+      viewer: ['read_attendance'],
       teacher: ['read_teachers_self', 'read_attendance_self', 'read_salary_self']
     };
 

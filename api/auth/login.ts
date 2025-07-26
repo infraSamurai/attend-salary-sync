@@ -7,21 +7,21 @@ const users = [
   {
     id: '1',
     username: 'admin',
-    password: '$2a$10$CwTycUXWue0Thq9StjUM0uJ7Z.Z4Y6rO/ClTr.5f.PGLxeKbO7V2K', // password: admin123
+    password: '$2a$10$w/Tapc6eGFtvZaGvSLYY6e8jnniF5REP1qmdsYb7F5fMABAsZ9WNi',
     role: 'admin',
     name: 'Administrator'
   },
   {
     id: '2', 
     username: 'manager',
-    password: '$2a$10$CwTycUXWue0Thq9StjUM0uJ7Z.Z4Y6rO/ClTr.5f.PGLxeKbO7V2K', // password: admin123
+    password: '$2a$10$zH1p.I2gs99wE7FWicCGq.ovn7myMD3gT2pXQ4gdDRzYJAbq7Ehwe',
     role: 'manager',
     name: 'Manager User'
   },
   {
     id: '3',
     username: 'viewer', 
-    password: '$2a$10$CwTycUXWue0Thq9StjUM0uJ7Z.Z4Y6rO/ClTr.5f.PGLxeKbO7V2K', // password: admin123
+    password: '$2a$10$SbtpYG17EV7UDe5hnnlKceuQ36ZZFgB4MhFJlll8x/9Ne6kHJqcxu',
     role: 'viewer',
     name: 'Viewer User'
   }
@@ -29,7 +29,21 @@ const users = [
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-change-in-production';
 
+if (!process.env.JWT_SECRET) {
+  console.error('WARNING: JWT_SECRET environment variable is not set!');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight request
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
