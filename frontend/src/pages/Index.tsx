@@ -7,11 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeacherManagement from "@/components/TeacherManagement";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import SalaryCalculator from "@/components/SalaryCalculator";
+import Reports from "@/components/Reports";
+import SettingsDialog from "@/components/SettingsDialog";
 import React from "react";
 import localforage from "localforage";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("attendance");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -65,7 +68,7 @@ const Index = () => {
               }}>
                 Import Backup
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)}>
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </Button>
@@ -109,20 +112,16 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="reports" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Reports & Analytics</CardTitle>
-                <CardDescription>
-                  Generate attendance reports and salary summaries
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-500">Reports section coming soon...</p>
-              </CardContent>
-            </Card>
+            <Reports />
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Settings Dialog */}
+      <SettingsDialog 
+        open={isSettingsOpen} 
+        onOpenChange={setIsSettingsOpen} 
+      />
     </div>
   );
 };
