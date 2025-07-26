@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from "recharts";
 import localforage from "localforage";
 import { Teacher, AttendanceRecord } from "@/types/attendance";
 
@@ -29,10 +29,10 @@ interface SalaryData {
   daysPresent: number;
   daysAbsent: number;
   daysLate: number;
-  totalWorkingDays: number;
+  daysLeave: number;
+  bonus: number;
+  computedSalary: number;
   deductions: number;
-  netSalary: number;
-  attendanceBonus: number;
 }
 
 interface MonthlySalaryData {
@@ -130,35 +130,76 @@ const SalaryReports: React.FC = () => {
 
   const calculateSalaryData = () => {
     const { startDate, endDate } = getDateRange();
-    const workingDays = getWorkingDaysInRange(startDate, endDate);
     
-    const salaries: SalaryData[] = teachers.map(teacher => {
-      const teacherAttendance = attendance.filter(record => {
-        const recordDate = new Date(record.date);
-        return record.teacherId === teacher.id && 
-               recordDate >= startDate && 
-               recordDate <= endDate;
-      });
+    // Use 30 days for calculation regardless of actual month length
+    const daysInMonth = 30;
+    
+    // Build a list of all days in the period (but cap at 30 for calculation)
+    const allDays: Date[] = [];
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const actualDays = Math.min(daysDiff + 1, daysInMonth);
+    
+    for (let day = 0; day < actualDays; day++) {
+      const currentDay = new Date(startDate);
+      currentDay.setDate(startDate.getDate() + day);
+      allDays.push(currentDay);
+    }
 
-      const daysPresent = teacherAttendance.filter(r => r.status === 'present').length;
-      const daysLate = teacherAttendance.filter(r => r.status === 'late').length;
-      const daysAbsent = teacherAttendance.filter(r => r.status === 'absent').length;
-      const totalWorkingDays = workingDays.length;
-      
-      // Calculate salary
-      const baseSalary = settings.defaultBaseSalary;
-      const deductions = daysAbsent * settings.deductionPerAbsentDay;
-      
-      // Attendance bonus: 5% bonus if attendance > 95%, 2% if > 90%
-      const attendanceRate = totalWorkingDays > 0 ? ((daysPresent + daysLate) / totalWorkingDays) * 100 : 0;
-      let attendanceBonus = 0;
-      if (attendanceRate > 95) {
-        attendanceBonus = baseSalary * 0.05;
-      } else if (attendanceRate > 90) {
-        attendanceBonus = baseSalary * 0.02;
+    const periodAttendance = attendance.filter(record => {
+      const recordDate = new Date(record.date);
+      return recordDate >= startDate && recordDate <= endDate;
+    });
+
+    const salaries: SalaryData[] = teachers.map((teacher: any) => {
+      // For each day, determine status following SalaryCalculator logic
+      let daysPresent = 0;
+      let daysAbsent = 0;
+      let daysLeave = 0;
+      let daysLate = 0;
+
+      for (const day of allDays) {
+        const isSunday = day.getDay() === 0;
+        const record = periodAttendance.find((a: any) => 
+          a.teacherId === teacher.id && 
+          new Date(a.date).toDateString() === day.toDateString()
+        );
+
+        if (isSunday) {
+          // If there is an explicit absent record for Sunday, count as absent
+          if (record && record.status === 'absent') {
+            daysAbsent++;
+          } else {
+            daysPresent++;
+          }
+        } else {
+          // For non-Sundays, present or late count as present, absent as absent
+          if (record && record.status === 'present') {
+            daysPresent++;
+          } else if (record && record.status === 'late') {
+            daysLate++;
+            daysPresent++; // Late still counts as present for salary
+          } else {
+            daysAbsent++;
+          }
+        }
       }
-      
-      const netSalary = baseSalary - deductions + attendanceBonus;
+
+      // 1 leave allowed per month (first absent is leave, not deducted)
+      if (daysAbsent > 0) {
+        daysLeave = 1;
+        daysAbsent = daysAbsent - 1;
+      }
+
+      // Bonus: if no absents or leaves, add 1 day salary
+      let bonus = 0;
+      if (daysAbsent === 0 && daysLeave === 0) {
+        bonus = 1;
+      }
+
+      const baseSalary = teacher.baseSalary || settings.defaultBaseSalary || 30000;
+      const dailyWage = baseSalary / 30;
+      const computedSalary = dailyWage * (daysPresent + bonus) + dailyWage * daysLeave; // leave is paid, bonus is paid
+      const deductions = dailyWage * daysAbsent;
 
       return {
         teacherId: teacher.id,
@@ -167,21 +208,21 @@ const SalaryReports: React.FC = () => {
         daysPresent,
         daysAbsent,
         daysLate,
-        totalWorkingDays,
-        deductions,
-        netSalary: Math.max(0, netSalary), // Ensure non-negative
-        attendanceBonus,
+        daysLeave,
+        bonus,
+        computedSalary: Math.round(computedSalary),
+        deductions: Math.round(deductions),
       };
     });
 
     setSalaryData(salaries);
 
     // Calculate overall stats
-    const totalPayroll = salaries.reduce((sum, salary) => sum + salary.netSalary, 0);
+    const totalPayroll = salaries.reduce((sum, salary) => sum + salary.computedSalary, 0);
     const totalDeductions = salaries.reduce((sum, salary) => sum + salary.deductions, 0);
     const averageSalary = salaries.length > 0 ? totalPayroll / salaries.length : 0;
     
-    const sortedSalaries = [...salaries].sort((a, b) => b.netSalary - a.netSalary);
+    const sortedSalaries = [...salaries].sort((a, b) => b.computedSalary - a.computedSalary);
     const highestPaid = sortedSalaries[0]?.teacherName || "";
     const lowestPaid = sortedSalaries[sortedSalaries.length - 1]?.teacherName || "";
 
@@ -208,8 +249,14 @@ const SalaryReports: React.FC = () => {
     for (let i = startMonth; i <= endMonth; i++) {
       const monthStart = new Date(now.getFullYear(), i, 1);
       const monthEnd = new Date(now.getFullYear(), i + 1, 0);
-      const workingDays = getWorkingDaysInRange(monthStart, monthEnd);
       
+      // Use 30 days for calculation
+      const daysInMonth = 30;
+      const allDays: Date[] = [];
+      for (let day = 1; day <= daysInMonth; day++) {
+        allDays.push(new Date(now.getFullYear(), i, day));
+      }
+
       const monthAttendance = attendance.filter(record => {
         const recordDate = new Date(record.date);
         return recordDate >= monthStart && recordDate <= monthEnd;
@@ -218,12 +265,51 @@ const SalaryReports: React.FC = () => {
       let totalPayroll = 0;
       let totalDeductions = 0;
 
-      teachers.forEach(teacher => {
-        const teacherAttendance = monthAttendance.filter(r => r.teacherId === teacher.id);
-        const daysAbsent = teacherAttendance.filter(r => r.status === 'absent').length;
-        const deductions = daysAbsent * settings.deductionPerAbsentDay;
-        totalDeductions += deductions;
-        totalPayroll += Math.max(0, settings.defaultBaseSalary - deductions);
+      teachers.forEach((teacher: any) => {
+        let daysPresent = 0;
+        let daysAbsent = 0;
+        let daysLeave = 0;
+
+        for (const day of allDays) {
+          const isSunday = day.getDay() === 0;
+          const record = monthAttendance.find((a: any) => 
+            a.teacherId === teacher.id && 
+            new Date(a.date).toDateString() === day.toDateString()
+          );
+
+          if (isSunday) {
+            if (record && record.status === 'absent') {
+              daysAbsent++;
+            } else {
+              daysPresent++;
+            }
+          } else {
+            if (record && (record.status === 'present' || record.status === 'late')) {
+              daysPresent++;
+            } else {
+              daysAbsent++;
+            }
+          }
+        }
+
+        // Apply leave and bonus logic
+        if (daysAbsent > 0) {
+          daysLeave = 1;
+          daysAbsent = daysAbsent - 1;
+        }
+
+        let bonus = 0;
+        if (daysAbsent === 0 && daysLeave === 0) {
+          bonus = 1;
+        }
+
+        const baseSalary = teacher.baseSalary || settings.defaultBaseSalary || 30000;
+        const dailyWage = baseSalary / 30;
+        const computedSalary = dailyWage * (daysPresent + bonus) + dailyWage * daysLeave;
+        const deductions = dailyWage * daysAbsent;
+
+        totalPayroll += Math.round(computedSalary);
+        totalDeductions += Math.round(deductions);
       });
 
       const averageSalary = teachers.length > 0 ? totalPayroll / teachers.length : 0;
@@ -242,7 +328,7 @@ const SalaryReports: React.FC = () => {
   const exportToCSV = () => {
     const headers = [
       "Teacher Name", "Base Salary", "Days Present", "Days Absent", "Days Late", 
-      "Deductions", "Attendance Bonus", "Net Salary"
+      "Days Leave", "Bonus Days", "Computed Salary", "Deductions"
     ];
     const csvData = [headers];
     
@@ -253,9 +339,10 @@ const SalaryReports: React.FC = () => {
         salary.daysPresent.toString(),
         salary.daysAbsent.toString(),
         salary.daysLate.toString(),
+        salary.daysLeave.toString(),
+        salary.bonus.toString(),
+        salary.computedSalary.toString(),
         salary.deductions.toString(),
-        salary.attendanceBonus.toString(),
-        salary.netSalary.toString(),
       ]);
     });
 
@@ -277,8 +364,8 @@ const SalaryReports: React.FC = () => {
     }).format(amount);
   };
 
-  const getSalaryStatus = (netSalary: number, baseSalary: number) => {
-    const ratio = netSalary / baseSalary;
+  const getSalaryStatus = (computedSalary: number, baseSalary: number) => {
+    const ratio = computedSalary / baseSalary;
     if (ratio >= 1.02) return { status: "Excellent", color: "bg-green-100 text-green-800" };
     if (ratio >= 0.95) return { status: "Good", color: "bg-blue-100 text-blue-800" };
     if (ratio >= 0.8) return { status: "Fair", color: "bg-yellow-100 text-yellow-800" };
@@ -401,15 +488,19 @@ const SalaryReports: React.FC = () => {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <RechartsPieChart>
-                <defs>
-                  <pattern id="green" patternUnits="userSpaceOnUse" width="4" height="4">
-                    <rect width="4" height="4" fill="#10b981" />
-                  </pattern>
-                  <pattern id="red" patternUnits="userSpaceOnUse" width="4" height="4">
-                    <rect width="4" height="4" fill="#ef4444" />
-                  </pattern>
-                </defs>
-                <Cell dataKey="value" />
+                <Pie 
+                  data={pieData} 
+                  cx="50%" 
+                  cy="50%" 
+                  labelLine={false}
+                  outerRadius={80} 
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
                 <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                 <Legend />
               </RechartsPieChart>
@@ -451,15 +542,16 @@ const SalaryReports: React.FC = () => {
                 <TableHead>Present</TableHead>
                 <TableHead>Absent</TableHead>
                 <TableHead>Late</TableHead>
-                <TableHead>Deductions</TableHead>
+                <TableHead>Leave</TableHead>
                 <TableHead>Bonus</TableHead>
-                <TableHead>Net Salary</TableHead>
+                <TableHead>Deductions</TableHead>
+                <TableHead>Computed Salary</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {salaryData.map((salary) => {
-                const salaryStatus = getSalaryStatus(salary.netSalary, salary.baseSalary);
+                const salaryStatus = getSalaryStatus(salary.computedSalary, salary.baseSalary);
                 return (
                   <TableRow key={salary.teacherId}>
                     <TableCell className="font-medium">{salary.teacherName}</TableCell>
@@ -467,14 +559,15 @@ const SalaryReports: React.FC = () => {
                     <TableCell>{salary.daysPresent}</TableCell>
                     <TableCell>{salary.daysAbsent}</TableCell>
                     <TableCell>{salary.daysLate}</TableCell>
+                    <TableCell>{salary.daysLeave}</TableCell>
+                    <TableCell className="text-green-600">
+                      +{salary.bonus} days
+                    </TableCell>
                     <TableCell className="text-red-600">
                       -{formatCurrency(salary.deductions)}
                     </TableCell>
-                    <TableCell className="text-green-600">
-                      +{formatCurrency(salary.attendanceBonus)}
-                    </TableCell>
                     <TableCell className="font-bold">
-                      {formatCurrency(salary.netSalary)}
+                      {formatCurrency(salary.computedSalary)}
                     </TableCell>
                     <TableCell>
                       <Badge className={salaryStatus.color}>

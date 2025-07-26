@@ -172,24 +172,54 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
           }
         });
 
-        // Rule: Holiday days count as present (unless Sunday)
+        // Rule: Holiday days count as present (unless Sunday or exception)
         days.forEach(day => {
           if (isHoliday(day.date) && !day.isSunday) {
-            const existingRecord = updated.find(a => 
-              a.teacherId === teacher.id && 
-              new Date(a.date).toDateString() === day.date.toDateString()
-            );
+            // Check holiday exception rule: if previous day AND next day are absent, holiday is also absent
+            const prevDate = new Date(day.date);
+            prevDate.setDate(prevDate.getDate() - 1);
+            const nextDate = new Date(day.date);
+            nextDate.setDate(nextDate.getDate() + 1);
 
-            if (!existingRecord) {
-              updated.push({
-                teacherId: teacher.id,
-                date: day.date.toISOString(),
-                status: 'present'
-              });
-              hasChanges = true;
-            } else if (existingRecord.status === 'absent') {
-              existingRecord.status = 'present';
-              hasChanges = true;
+            const prevAttendance = getAttendanceStatus(teacher.id, prevDate);
+            const nextAttendance = getAttendanceStatus(teacher.id, nextDate);
+
+            // If both previous and next day are absent, mark holiday as absent
+            if (prevAttendance === 'absent' && nextAttendance === 'absent') {
+              const existingRecord = updated.find(a => 
+                a.teacherId === teacher.id && 
+                new Date(a.date).toDateString() === day.date.toDateString()
+              );
+
+              if (!existingRecord) {
+                updated.push({
+                  teacherId: teacher.id,
+                  date: day.date.toISOString(),
+                  status: 'absent'
+                });
+                hasChanges = true;
+              } else if (existingRecord.status !== 'absent') {
+                existingRecord.status = 'absent';
+                hasChanges = true;
+              }
+            } else {
+              // Normal holiday rule: mark as present
+              const existingRecord = updated.find(a => 
+                a.teacherId === teacher.id && 
+                new Date(a.date).toDateString() === day.date.toDateString()
+              );
+
+              if (!existingRecord) {
+                updated.push({
+                  teacherId: teacher.id,
+                  date: day.date.toISOString(),
+                  status: 'present'
+                });
+                hasChanges = true;
+              } else if (existingRecord.status === 'absent') {
+                existingRecord.status = 'present';
+                hasChanges = true;
+              }
             }
           }
         });
