@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withAuth, type AuthenticatedRequest } from '../middleware/auth';
-import { getAttendance, addOrUpdateAttendance, deleteAttendance } from '../utils/storage';
+import {
+  getAllAttendance,
+  getAttendanceByTeacherId,
+  getAttendanceByDateRange,
+  upsertAttendance,
+  deleteAttendanceByTeacherAndDate
+} from '../models/Attendance';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
@@ -22,8 +28,20 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
 async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   try {
+    console.log(`🔍 Fetching attendance for user: ${user.username} (${user.role})`);
     const { teacherId, startDate, endDate } = req.query;
-    const attendance = await getAttendance();
+    
+    let attendance;
+    
+    // Fetch attendance based on query parameters
+    if (teacherId) {
+      attendance = await getAttendanceByTeacherId(parseInt(teacherId as string));
+    } else if (startDate && endDate) {
+      attendance = await getAttendanceByDateRange(startDate as string, endDate as string);
+    } else {
+      attendance = await getAllAttendance();
+    }
+    
     let filteredAttendance = [...attendance];
 
     // Role-based filtering
@@ -31,37 +49,29 @@ async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: a
       case 'admin':
       case 'manager':
         // Full access to all attendance data
+        console.log(`✅ Admin/Manager access: returning ${attendance.length} attendance records`);
         break;
       case 'viewer':
         // Read-only access to all attendance
+        console.log(`✅ Viewer access: returning ${filteredAttendance.length} attendance records`);
         break;
       case 'teacher':
         // Only their own attendance data
         // Note: This would need proper mapping between user and teacher records
-        filteredAttendance = attendance.filter(record => {
-          // For now, we'll assume teacherId matches or filter by name
-          return teacherId ? record.teacherId === teacherId : true;
-        });
+        if (!teacherId) {
+          console.log(`❌ Teacher access requires teacherId parameter`);
+          return res.status(400).json({ error: 'Teacher ID is required for teacher role' });
+        }
+        console.log(`✅ Teacher access: returning attendance for teacher ${teacherId}`);
         break;
       default:
+        console.log(`❌ Access denied for role: ${user.role}`);
         return res.status(403).json({ error: 'Access denied' });
-    }
-
-    // Apply additional filters
-    if (teacherId) {
-      filteredAttendance = filteredAttendance.filter(record => record.teacherId === teacherId);
-    }
-
-    if (startDate && endDate) {
-      filteredAttendance = filteredAttendance.filter(record => {
-        const recordDate = new Date(record.date);
-        return recordDate >= new Date(startDate as string) && recordDate <= new Date(endDate as string);
-      });
     }
 
     res.status(200).json({ attendance: filteredAttendance });
   } catch (error) {
-    console.error('Error fetching attendance:', error);
+    console.error('❌ Error fetching attendance:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -69,6 +79,7 @@ async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: a
 async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   // Admin and Manager can add attendance
   if (!['admin', 'manager'].includes(user.role)) {
+    console.log(`❌ Add attendance blocked: insufficient role ${user.role}`);
     return res.status(403).json({ error: 'Insufficient permissions to add attendance' });
   }
 
@@ -76,25 +87,28 @@ async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: 
     const { teacherId, date, status } = req.body;
 
     if (!teacherId || !date || !status) {
+      console.log('❌ Add attendance failed: missing required fields');
       return res.status(400).json({ error: 'Teacher ID, date, and status are required' });
     }
 
     if (!['present', 'absent', 'late'].includes(status)) {
+      console.log(`❌ Add attendance failed: invalid status ${status}`);
       return res.status(400).json({ error: 'Status must be present, absent, or late' });
     }
 
-    const attendanceRecord = {
-      teacherId,
+    const attendanceData = {
+      teacher_id: parseInt(teacherId),
       date,
-      status,
-      updatedBy: user.username,
-      updatedAt: new Date().toISOString()
+      status
     };
 
-    const savedRecord = await addOrUpdateAttendance(attendanceRecord);
+    console.log(`💾 Adding/updating attendance for teacher ${teacherId} on ${date}`);
+    const savedRecord = await upsertAttendance(attendanceData);
+    
+    console.log(`✅ Attendance record saved with ID: ${savedRecord.id}`);
     res.status(200).json({ attendance: savedRecord });
   } catch (error) {
-    console.error('Error adding attendance:', error);
+    console.error('❌ Error adding attendance:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -102,6 +116,7 @@ async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: 
 async function handlePut(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   // Admin and Manager can update attendance
   if (!['admin', 'manager'].includes(user.role)) {
+    console.log(`❌ Update attendance blocked: insufficient role ${user.role}`);
     return res.status(403).json({ error: 'Insufficient permissions to update attendance' });
   }
 
@@ -109,21 +124,28 @@ async function handlePut(req: AuthenticatedRequest, res: VercelResponse, user: a
     const { teacherId, date, status } = req.body;
 
     if (!teacherId || !date) {
+      console.log('❌ Update attendance failed: missing required fields');
       return res.status(400).json({ error: 'Teacher ID and date are required' });
     }
 
-    const attendanceRecord = {
-      teacherId,
+    if (status && !['present', 'absent', 'late'].includes(status)) {
+      console.log(`❌ Update attendance failed: invalid status ${status}`);
+      return res.status(400).json({ error: 'Status must be present, absent, or late' });
+    }
+
+    const attendanceData = {
+      teacher_id: parseInt(teacherId),
       date,
-      status,
-      updatedBy: user.username,
-      updatedAt: new Date().toISOString()
+      status
     };
 
-    const updatedRecord = await addOrUpdateAttendance(attendanceRecord);
+    console.log(`💾 Updating attendance for teacher ${teacherId} on ${date}`);
+    const updatedRecord = await upsertAttendance(attendanceData);
+    
+    console.log(`✅ Attendance record updated with ID: ${updatedRecord.id}`);
     res.status(200).json({ attendance: updatedRecord });
   } catch (error) {
-    console.error('Error updating attendance:', error);
+    console.error('❌ Error updating attendance:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -131,20 +153,30 @@ async function handlePut(req: AuthenticatedRequest, res: VercelResponse, user: a
 async function handleDelete(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   // Only admin can delete attendance records
   if (user.role !== 'admin') {
+    console.log(`❌ Delete attendance blocked: insufficient role ${user.role}`);
     return res.status(403).json({ error: 'Only administrators can delete attendance records' });
   }
 
   try {
     const { teacherId, date } = req.query;
 
-    const deleted = await deleteAttendance(teacherId as string, date as string);
+    if (!teacherId || !date) {
+      console.log('❌ Delete attendance failed: missing required parameters');
+      return res.status(400).json({ error: 'Teacher ID and date are required' });
+    }
+
+    console.log(`🗑️ Attempting to delete attendance for teacher ${teacherId} on ${date}`);
+    const deleted = await deleteAttendanceByTeacherAndDate(parseInt(teacherId as string), date as string);
+    
     if (!deleted) {
+      console.log(`❌ Attendance record not found for teacher ${teacherId} on ${date}`);
       return res.status(404).json({ error: 'Attendance record not found' });
     }
 
+    console.log(`✅ Attendance record deleted for teacher ${teacherId} on ${date}`);
     res.status(200).json({ message: 'Attendance record deleted successfully' });
   } catch (error) {
-    console.error('Error deleting attendance:', error);
+    console.error('❌ Error deleting attendance:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

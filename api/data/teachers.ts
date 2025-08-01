@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withAuth, type AuthenticatedRequest } from '../middleware/auth';
-import { getTeachers, addTeacher, updateTeacher, deleteTeacher } from '../utils/storage';
+import { 
+  getAllTeachers, 
+  createTeacher, 
+  updateTeacher as updateTeacherInDB, 
+  deleteTeacher as deleteTeacherFromDB,
+  getTeacherById
+} from '../models/Teacher';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
@@ -22,7 +28,9 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
 async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   try {
-    const teachers = await getTeachers();
+    console.log(`🔍 Fetching teachers for user: ${user.username} (${user.role})`);
+    
+    const teachers = await getAllTeachers();
     let filteredTeachers = [...teachers];
 
     // Role-based filtering
@@ -30,6 +38,7 @@ async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: a
       case 'admin':
       case 'manager':
         // Full access to all teacher data
+        console.log(`✅ Admin/Manager access: returning ${teachers.length} teachers`);
         break;
       case 'viewer':
         // Only basic info (name, designation)
@@ -37,22 +46,25 @@ async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: a
           id: teacher.id,
           name: teacher.name,
           designation: teacher.designation,
-          joinDate: teacher.joinDate
+          join_date: teacher.join_date
         })) as any;
+        console.log(`✅ Viewer access: returning basic info for ${filteredTeachers.length} teachers`);
         break;
       case 'teacher':
         // Only their own data (if they have a teacher record)
         filteredTeachers = teachers.filter(teacher => 
           teacher.name.toLowerCase() === user.name.toLowerCase()
         );
+        console.log(`✅ Teacher access: returning ${filteredTeachers.length} matching teachers`);
         break;
       default:
+        console.log(`❌ Access denied for role: ${user.role}`);
         return res.status(403).json({ error: 'Access denied' });
     }
 
     res.status(200).json({ teachers: filteredTeachers });
   } catch (error) {
-    console.error('Error fetching teachers:', error);
+    console.error('❌ Error fetching teachers:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -60,6 +72,7 @@ async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: a
 async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   // Only admin can create teachers
   if (user.role !== 'admin') {
+    console.log(`❌ Create teacher blocked: insufficient role ${user.role}`);
     return res.status(403).json({ error: 'Only administrators can create teachers' });
   }
 
@@ -67,22 +80,26 @@ async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: 
     const { name, designation, baseSalary, joinDate, contact, photo } = req.body;
 
     if (!name || !designation) {
+      console.log('❌ Create teacher failed: missing required fields');
       return res.status(400).json({ error: 'Name and designation are required' });
     }
 
     const teacherData = {
       name,
       designation,
-      baseSalary: baseSalary || 0,
-      joinDate: joinDate || new Date().toISOString().split('T')[0],
+      base_salary: baseSalary || 0,
+      join_date: joinDate || new Date().toISOString().split('T')[0],
       contact: contact || '',
       photo: photo || ''
     };
 
-    const newTeacher = await addTeacher(teacherData);
+    console.log(`💾 Creating teacher: ${teacherData.name}`);
+    const newTeacher = await createTeacher(teacherData);
+    
+    console.log(`✅ Teacher created with ID: ${newTeacher.id}`);
     res.status(201).json({ teacher: newTeacher });
   } catch (error) {
-    console.error('Error creating teacher:', error);
+    console.error('❌ Error creating teacher:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -90,6 +107,7 @@ async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: 
 async function handlePut(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   // Only admin can update teachers
   if (user.role !== 'admin') {
+    console.log(`❌ Update teacher blocked: insufficient role ${user.role}`);
     return res.status(403).json({ error: 'Only administrators can update teachers' });
   }
 
@@ -97,14 +115,32 @@ async function handlePut(req: AuthenticatedRequest, res: VercelResponse, user: a
     const { id } = req.query;
     const updates = req.body;
 
-    const updatedTeacher = await updateTeacher(id as string, updates);
+    if (!id) {
+      console.log('❌ Update teacher failed: missing ID');
+      return res.status(400).json({ error: 'Teacher ID is required' });
+    }
+
+    // Convert frontend field names to database field names
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.designation !== undefined) dbUpdates.designation = updates.designation;
+    if (updates.baseSalary !== undefined) dbUpdates.base_salary = updates.baseSalary;
+    if (updates.joinDate !== undefined) dbUpdates.join_date = updates.joinDate;
+    if (updates.contact !== undefined) dbUpdates.contact = updates.contact;
+    if (updates.photo !== undefined) dbUpdates.photo = updates.photo;
+
+    console.log(`💾 Updating teacher ID: ${id}`);
+    const updatedTeacher = await updateTeacherInDB(parseInt(id as string), dbUpdates);
+    
     if (!updatedTeacher) {
+      console.log(`❌ Teacher with ID ${id} not found`);
       return res.status(404).json({ error: 'Teacher not found' });
     }
 
+    console.log(`✅ Teacher updated: ${updatedTeacher.name}`);
     res.status(200).json({ teacher: updatedTeacher });
   } catch (error) {
-    console.error('Error updating teacher:', error);
+    console.error('❌ Error updating teacher:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -112,20 +148,30 @@ async function handlePut(req: AuthenticatedRequest, res: VercelResponse, user: a
 async function handleDelete(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   // Only admin can delete teachers
   if (user.role !== 'admin') {
+    console.log(`❌ Delete teacher blocked: insufficient role ${user.role}`);
     return res.status(403).json({ error: 'Only administrators can delete teachers' });
   }
 
   try {
     const { id } = req.query;
+
+    if (!id) {
+      console.log('❌ Delete teacher failed: missing ID');
+      return res.status(400).json({ error: 'Teacher ID is required' });
+    }
     
-    const deleted = await deleteTeacher(id as string);
+    console.log(`🗑️ Attempting to delete teacher ID: ${id}`);
+    const deleted = await deleteTeacherFromDB(parseInt(id as string));
+    
     if (!deleted) {
+      console.log(`❌ Teacher with ID ${id} not found for deletion`);
       return res.status(404).json({ error: 'Teacher not found' });
     }
 
+    console.log(`✅ Teacher deleted successfully: ID ${id}`);
     res.status(200).json({ message: 'Teacher deleted successfully' });
   } catch (error) {
-    console.error('Error deleting teacher:', error);
+    console.error('❌ Error deleting teacher:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

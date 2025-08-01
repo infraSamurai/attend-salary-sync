@@ -1,31 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-
-// Temporary in-memory user store (will be replaced with database)
-const users = [
-  {
-    id: '1',
-    username: 'admin',
-    password: '$2a$10$w/Tapc6eGFtvZaGvSLYY6e8jnniF5REP1qmdsYb7F5fMABAsZ9WNi',
-    role: 'admin',
-    name: 'Administrator'
-  },
-  {
-    id: '2', 
-    username: 'manager',
-    password: '$2a$10$zH1p.I2gs99wE7FWicCGq.ovn7myMD3gT2pXQ4gdDRzYJAbq7Ehwe',
-    role: 'manager',
-    name: 'Manager User'
-  },
-  {
-    id: '3',
-    username: 'viewer', 
-    password: '$2a$10$SbtpYG17EV7UDe5hnnlKceuQ36ZZFgB4MhFJlll8x/9Ne6kHJqcxu',
-    role: 'viewer',
-    name: 'Viewer User'
-  }
-];
+import { verifyPassword } from '../models/User';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-change-in-production';
 
@@ -57,22 +32,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    // Find user
-    const user = users.find(u => u.username === username);
+    console.log(`🔐 Login attempt for username: ${username}`);
+    
+    // Verify user credentials using database
+    const user = await verifyPassword(username, password);
     if (!user) {
+      console.log(`❌ Invalid credentials for username: ${username}`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+    
+    console.log(`✅ Login successful for user: ${user.name} (${user.role})`);
 
     // Generate JWT token
     const token = jwt.sign(
       { 
-        userId: user.id, 
+        userId: user.id.toString(), 
         username: user.username, 
         role: user.role,
         name: user.name
@@ -86,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       token,
       user: {
-        id: user.id,
+        id: user.id.toString(),
         username: user.username,
         role: user.role,
         name: user.name
@@ -94,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
