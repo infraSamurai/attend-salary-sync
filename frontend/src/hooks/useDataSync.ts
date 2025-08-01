@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { requestManager } from '@/utils/requestManager';
 
 interface SyncOptions {
   url: string;
-  interval?: number; // in milliseconds, default 10 seconds
+  interval?: number; // in milliseconds, default 30 seconds
   enabled?: boolean;
   onData?: (data: any) => void;
   onError?: (error: Error) => void;
@@ -18,7 +19,7 @@ interface SyncState {
 
 export function useDataSync({
   url,
-  interval = 10000,
+  interval = 30000, // Increased to 30 seconds to prevent resource exhaustion
   enabled = true,
   onData,
   onError
@@ -62,7 +63,7 @@ export function useDataSync({
         setState(prev => ({ ...prev, loading: true, error: null }));
       }
 
-      const response = await fetch(url, {
+      const response = await requestManager.makeRequest(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -101,10 +102,17 @@ export function useDataSync({
       retryCountRef.current++;
       onError?.(err);
 
-      // Exponential backoff for retries
-      if (retryCountRef.current <= maxRetries) {
-        const retryDelay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
+      // Exponential backoff for retries, but stop polling on resource errors
+      if (retryCountRef.current <= maxRetries && !err.message.includes('INSUFFICIENT_RESOURCES')) {
+        const retryDelay = Math.min(1000 * Math.pow(2, retryCountRef.current), 60000);
         setTimeout(() => fetchData(false), retryDelay);
+      } else if (err.message.includes('INSUFFICIENT_RESOURCES')) {
+        // Stop polling for 5 minutes on resource exhaustion
+        console.warn('Resource exhaustion detected, pausing sync for 5 minutes');
+        setTimeout(() => {
+          retryCountRef.current = 0;
+          fetchData(false);
+        }, 300000); // 5 minutes
       }
     }
   }, [url, enabled, getAuthToken, onData, onError]);
