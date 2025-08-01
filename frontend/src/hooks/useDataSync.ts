@@ -19,7 +19,7 @@ interface SyncState {
 
 export function useDataSync({
   url,
-  interval = 30000, // Increased to 30 seconds to prevent resource exhaustion
+  interval = 30000, // Not used for automatic polling anymore
   enabled = true,
   onData,
   onError
@@ -123,38 +123,27 @@ export function useDataSync({
     fetchData(true);
   }, [fetchData]);
 
-  // Handle tab visibility changes
+  // Handle tab visibility changes - DISABLED FOR MANUAL SYNC
   useEffect(() => {
     const handleVisibilityChange = () => {
       isTabActiveRef.current = !document.hidden;
-      
-      if (isTabActiveRef.current) {
-        // Tab became active, refresh data immediately
-        fetchData(false);
-        startPolling();
-      } else {
-        // Tab became inactive, stop polling
-        stopPolling();
-      }
+      // No automatic syncing on tab changes - manual only
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchData]);
+  }, []);
 
-  // Handle online/offline status
+  // Handle online/offline status - NO AUTO-SYNC
   useEffect(() => {
     const handleOnline = () => {
       setState(prev => ({ ...prev, isOnline: true }));
-      if (isTabActiveRef.current) {
-        fetchData(false);
-        startPolling();
-      }
+      // No automatic syncing when coming online - manual only
     };
 
     const handleOffline = () => {
       setState(prev => ({ ...prev, isOnline: false }));
-      stopPolling();
+      stopPolling(); // Stop any existing polling
     };
 
     window.addEventListener('online', handleOnline);
@@ -164,7 +153,7 @@ export function useDataSync({
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [fetchData]);
+  }, [stopPolling]);
 
   // Start polling
   const startPolling = useCallback(() => {
@@ -187,17 +176,17 @@ export function useDataSync({
     }
   }, []);
 
-  // Initialize and cleanup
+  // Initialize and cleanup - MANUAL SYNC ONLY, NO AUTO-POLLING
   useEffect(() => {
     if (enabled) {
-      fetchData(true); // Initial fetch
-      startPolling(); // Start polling
+      fetchData(true); // Initial fetch only
+      // NO automatic polling - manual refresh only
     }
 
     return () => {
-      stopPolling();
+      stopPolling(); // Clean up any existing polling
     };
-  }, [enabled, fetchData, startPolling, stopPolling]);
+  }, [enabled, fetchData, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {

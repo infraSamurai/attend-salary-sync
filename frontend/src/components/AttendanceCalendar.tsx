@@ -84,23 +84,25 @@ const AttendanceCalendar = () => {
               </CardTitle>
               <CardDescription className="flex flex-col">
                 <span>Mark daily attendance for all teachers</span>
+                <span className="block text-xs mt-1 text-blue-600 font-medium">
+                  Manual sync mode - Click "Sync Now" to get latest data
+                </span>
                 {attendanceLoading && (
                   <div className="flex items-center mt-1 text-xs text-muted-foreground">
                     <RefreshCw className="w-3 h-3 animate-spin mr-1" />
-                    Syncing attendance data...
+                    Syncing data...
                   </div>
                 )}
               </CardDescription>
             </div>
             <div className="flex items-center gap-4">
               <Button 
-                variant="outline" 
-                size="sm"
                 onClick={handleRefresh}
                 disabled={attendanceLoading || teachersLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${(attendanceLoading || teachersLoading) ? 'animate-spin' : ''}`} />
-                Refresh
+                {(attendanceLoading || teachersLoading) ? 'Syncing...' : 'Sync Now'}
               </Button>
               <AttendanceStats teachers={teachers} attendanceRate={stats.attendanceRate} totalLate={stats.totalLate} />
             </div>

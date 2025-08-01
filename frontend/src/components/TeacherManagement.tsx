@@ -158,22 +158,24 @@ const TeacherManagement = () => {
               </CardTitle>
               <CardDescription>
                 Manage teacher profiles and information
+                <span className="block text-xs mt-1 text-blue-600 font-medium">
+                  Manual sync mode - Click "Sync Now" to get latest data
+                </span>
                 {lastUpdated && (
                   <span className="block text-xs mt-1">
-                    Last updated: {lastUpdated.toLocaleTimeString()}
+                    Last synced: {lastUpdated.toLocaleTimeString()}
                   </span>
                 )}
               </CardDescription>
             </div>
             <div className="flex gap-2">
               <Button 
-                variant="outline" 
-                size="sm"
                 onClick={refresh}
                 disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
+                {loading ? 'Syncing...' : 'Sync Now'}
               </Button>
               <Button onClick={() => setIsAddDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
