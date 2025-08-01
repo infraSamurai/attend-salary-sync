@@ -150,6 +150,49 @@ async function seedDefaultData() {
       console.log('ℹ️ [DB-SEED] Teachers already exist, skipping teacher seeding');
     }
 
+    // Check if attendance exists and seed sample data
+    const attendanceCount = await sql`SELECT COUNT(*) FROM attendance`;
+    console.log('🌱 [DB-SEED] Current attendance count:', attendanceCount.rows[0].count);
+    
+    if (attendanceCount.rows[0].count === '0') {
+      console.log('🌱 [DB-SEED] Seeding sample attendance data...');
+      
+      // Get current date and last 7 days for sample data
+      const today = new Date();
+      const dates = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        dates.push(date.toISOString().split('T')[0]);
+      }
+      
+      // Create sample attendance for last 7 days for first 10 teachers
+      const attendanceData = [];
+      for (let teacherId = 1; teacherId <= 10; teacherId++) {
+        for (const date of dates) {
+          // Random attendance status (mostly present)
+          const rand = Math.random();
+          let status = 'present';
+          if (rand < 0.1) status = 'absent';
+          else if (rand < 0.2) status = 'late';
+          
+          attendanceData.push(`(${teacherId}, '${date}', '${status}')`);
+        }
+      }
+      
+      if (attendanceData.length > 0) {
+        const query = `
+          INSERT INTO attendance (teacher_id, date, status) VALUES 
+          ${attendanceData.join(', ')}
+        `;
+        
+        await sql.query(query);
+        console.log(`✅ [DB-SEED] Sample attendance seeded successfully (${attendanceData.length} records)`);
+      }
+    } else {
+      console.log('ℹ️ [DB-SEED] Attendance data already exists, skipping attendance seeding');
+    }
+
   } catch (error) {
     console.error('❌ [DB-SEED] Failed to seed default data:', error);
     console.error('❌ [DB-SEED] Seed error details:', {
