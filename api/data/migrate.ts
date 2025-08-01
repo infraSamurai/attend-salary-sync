@@ -1,9 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withAuth, type AuthenticatedRequest } from '../middleware/auth';
-
-// Import existing data (this would be replaced with database operations)
-let teachers: any[] = [];
-let attendance: any[] = [];
+import { saveTeachers, saveAttendance } from '../utils/storage';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
@@ -30,17 +27,15 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
     // Migrate teachers
     if (importTeachers && Array.isArray(importTeachers)) {
-      // Clear existing teachers and replace with imported data
-      teachers.length = 0;
-      teachers.push(...importTeachers);
+      // Save imported teachers to persistent storage
+      await saveTeachers(importTeachers);
       migratedTeachers = importTeachers.length;
     }
 
     // Migrate attendance
     if (importAttendance && Array.isArray(importAttendance)) {
-      // Clear existing attendance and replace with imported data
-      attendance.length = 0;
-      attendance.push(...importAttendance);
+      // Save imported attendance to persistent storage
+      await saveAttendance(importAttendance);
       migratedAttendance = importAttendance.length;
     }
 

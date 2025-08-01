@@ -36,15 +36,15 @@ const DataLoader: React.FC = () => {
   const loadBackupData = async () => {
     setIsLoading(true);
     try {
-      // Load each data type from the backup
+      // Load each data type from the backup to LocalForage
       if (backupData.teachers) {
         await localforage.setItem("teachers", backupData.teachers);
-        console.log(`Loaded ${backupData.teachers.length} teachers`);
+        console.log(`Loaded ${backupData.teachers.length} teachers to LocalForage`);
       }
       
       if (backupData.attendance) {
         await localforage.setItem("attendance", backupData.attendance);
-        console.log(`Loaded ${backupData.attendance.length} attendance records`);
+        console.log(`Loaded ${backupData.attendance.length} attendance records to LocalForage`);
       }
       
       if (backupData.teacher_id_counter) {
@@ -59,12 +59,36 @@ const DataLoader: React.FC = () => {
       
       for (const key of otherKeys) {
         await localforage.setItem(key, (backupData as any)[key]);
-        console.log(`Loaded ${key} data`);
+        console.log(`Loaded ${key} data to LocalForage`);
+      }
+
+      // Now migrate the data to the server-side storage via API
+      try {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        const response = await fetch('/api/data/migrate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(backupData),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Data migrated to server:', result);
+          alert(`Data loaded and migrated successfully!\n- ${result.migrated.teachers} teachers\n- ${result.migrated.attendance} attendance records\n\nPlease refresh the page to see the data.`);
+        } else {
+          console.warn('Failed to migrate data to server, but LocalForage data is available');
+          alert("Data loaded to local storage successfully, but server migration failed. Please check your login status and try again.");
+        }
+      } catch (migrateError) {
+        console.error('Migration error:', migrateError);
+        alert("Data loaded to local storage successfully, but server migration failed. Please check your connection and try again.");
       }
 
       setDataLoaded(true);
       setHasExistingData(true);
-      alert("Data loaded successfully! Please refresh the page to see the data.");
     } catch (error) {
       console.error("Error loading backup data:", error);
       alert("Error loading data. Please check the console for details.");
