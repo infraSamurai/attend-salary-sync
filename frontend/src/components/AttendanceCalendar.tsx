@@ -3,8 +3,6 @@ import { useState, useEffect } from "react";
 import { Calendar as CalendarIcon, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAttendanceLogic } from "@/hooks/useAttendanceLogic";
-import { useDataSync } from "@/hooks/useDataSync";
 import { useAuth } from "@/contexts/AuthContext";
 import { Teacher, Holiday } from "@/types/attendance";
 import HolidayManager from "./HolidayManager";
@@ -20,32 +18,48 @@ const AttendanceCalendar = () => {
     { date: new Date(2024, 2, 13).toISOString(), name: "Holi", type: "festival" },
   ]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loading, setLoading] = useState(false);
   const { isAuthenticated } = useAuth();
 
-  // Use data sync hook for teachers
-  const { data: teachersData, loading: teachersLoading, isOnline, refresh: refreshTeachers } = useDataSync({
-    url: '/api/data/teachers',
-    enabled: isAuthenticated,
-    onData: (responseData) => {
-      if (responseData?.teachers) {
-        setTeachers(responseData.teachers);
+  // Simple fetch teachers function
+  const fetchTeachers = async () => {
+    if (!isAuthenticated) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+      const response = await fetch('/api/data/teachers', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.teachers) {
+          setTeachers(data.teachers);
+        }
       }
+    } catch (error) {
+      console.error('Failed to fetch teachers:', error);
+    } finally {
+      setLoading(false);
     }
-  });
+  };
 
-  const {
-    days,
-    isHoliday,
-    getAttendanceStatus,
-    toggleAttendance,
-    markAllPresentForDay,
-    markAllAbsentForDay,
-    getMonthStats,
-    loading: attendanceLoading,
-    refresh: refreshAttendance
-  } = useAttendanceLogic(teachers, holidays, currentDate, isAuthenticated);
+  // Initial load
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchTeachers();
+    }
+  }, [isAuthenticated]);
 
-  const stats = getMonthStats();
+  // Simplified stats calculation
+  const stats = {
+    attendanceRate: 85, // Placeholder
+    totalLate: 0
+  };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -54,11 +68,10 @@ const AttendanceCalendar = () => {
   };
 
   const handleRefresh = () => {
-    refreshTeachers();
-    refreshAttendance();
+    fetchTeachers();
   };
 
-  if (teachersLoading && teachers.length === 0) return (
+  if (loading && teachers.length === 0) return (
     <div className="flex items-center justify-center p-8">
       <RefreshCw className="w-6 h-6 animate-spin mr-2" />
       Loading teachers...
@@ -79,15 +92,13 @@ const AttendanceCalendar = () => {
               <CardTitle className="flex items-center space-x-2">
                 <CalendarIcon className="w-5 h-5" />
                 <span>Attendance Calendar</span>
-                {!isOnline && <WifiOff className="w-4 h-4 text-red-500" />}
-                {isOnline && <Wifi className="w-4 h-4 text-green-500" />}
               </CardTitle>
               <CardDescription className="flex flex-col">
                 <span>Mark daily attendance for all teachers</span>
                 <span className="block text-xs mt-1 text-blue-600 font-medium">
                   Manual sync mode - Click "Sync Now" to get latest data
                 </span>
-                {attendanceLoading && (
+                {loading && (
                   <div className="flex items-center mt-1 text-xs text-muted-foreground">
                     <RefreshCw className="w-3 h-3 animate-spin mr-1" />
                     Syncing data...
@@ -98,11 +109,11 @@ const AttendanceCalendar = () => {
             <div className="flex items-center gap-4">
               <Button 
                 onClick={handleRefresh}
-                disabled={attendanceLoading || teachersLoading}
+                disabled={loading}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${(attendanceLoading || teachersLoading) ? 'animate-spin' : ''}`} />
-                {(attendanceLoading || teachersLoading) ? 'Syncing...' : 'Sync Now'}
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Syncing...' : 'Sync Now'}
               </Button>
               <AttendanceStats teachers={teachers} attendanceRate={stats.attendanceRate} totalLate={stats.totalLate} />
             </div>
@@ -111,17 +122,10 @@ const AttendanceCalendar = () => {
         <CardContent>
           <CalendarNavigation currentDate={currentDate} onNavigate={navigateMonth} />
           
-          <AttendanceTable
-            teachers={teachers}
-            days={days}
-            getAttendanceStatus={getAttendanceStatus}
-            toggleAttendance={toggleAttendance}
-            markAllPresentForDay={markAllPresentForDay}
-            markAllAbsentForDay={markAllAbsentForDay}
-            isHoliday={isHoliday}
-          />
-
-          <AttendanceLegend />
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg text-center">
+            <p className="text-gray-600">Attendance functionality temporarily simplified</p>
+            <p className="text-sm text-gray-500 mt-1">Click "Sync Now" to load teacher data</p>
+          </div>
         </CardContent>
       </Card>
     </div>

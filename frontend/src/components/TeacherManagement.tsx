@@ -17,8 +17,6 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import AddTeacherDialog from "./AddTeacherDialog";
-import { useDataSync } from "@/hooks/useDataSync";
-import { useTeacherBroadcast } from "@/hooks/useBroadcastSync";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Teacher {
@@ -35,41 +33,45 @@ const TeacherManagement = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
-  // Use data sync hook for real-time updates
-  const { data, loading, error, lastUpdated, isOnline, refresh } = useDataSync({
-    url: '/api/data/teachers',
-    enabled: isAuthenticated,
-    onData: (responseData) => {
-      if (responseData?.teachers) {
-        setTeachers(responseData.teachers);
+  // Simple fetch teachers function
+  const fetchTeachers = async () => {
+    if (!isAuthenticated) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+      const response = await fetch('/api/data/teachers', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.teachers) {
+          setTeachers(data.teachers);
+          setLastUpdated(new Date());
+        }
       }
-    },
-    onError: (error) => {
-      if (error.message !== 'Not authenticated') {
-        toast({
-          title: "Sync Error",
-          description: `Failed to sync teachers: ${error.message}`,
-          variant: "destructive",
-        });
-      }
+    } catch (error) {
+      console.error('Failed to fetch teachers:', error);
+    } finally {
+      setLoading(false);
     }
-  });
+  };
 
-  // Use broadcast channel for same-device synchronization
-  const { broadcast } = useTeacherBroadcast();
-
-  // Listen for broadcast messages from other tabs
+  // Initial load
   useEffect(() => {
-    const handleTeachersChanged = () => {
-      refresh(); // Refresh data when other tabs make changes
-    };
-
-    window.addEventListener('teachers-changed', handleTeachersChanged);
-    return () => window.removeEventListener('teachers-changed', handleTeachersChanged);
-  }, [refresh]);
+    if (isAuthenticated) {
+      fetchTeachers();
+    }
+  }, [isAuthenticated]);
 
   const filteredTeachers = teachers.filter(teacher =>
     teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,11 +94,8 @@ const TeacherManagement = () => {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      // Broadcast the change to other tabs
-      broadcast('teacher-added', teacherData);
-      
       // Refresh data to get latest state
-      refresh();
+      fetchTeachers();
       setIsAddDialogOpen(false);
       
       toast({
@@ -126,11 +125,8 @@ const TeacherManagement = () => {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      // Broadcast the change to other tabs
-      broadcast('teacher-deleted', { id });
-      
       // Refresh data to get latest state
-      refresh();
+      fetchTeachers();
       
       toast({
         title: "Success",
@@ -153,8 +149,6 @@ const TeacherManagement = () => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 Teacher Management
-                {!isOnline && <WifiOff className="w-4 h-4 text-red-500" />}
-                {isOnline && <Wifi className="w-4 h-4 text-green-500" />}
               </CardTitle>
               <CardDescription>
                 Manage teacher profiles and information
@@ -170,7 +164,7 @@ const TeacherManagement = () => {
             </div>
             <div className="flex gap-2">
               <Button 
-                onClick={refresh}
+                onClick={fetchTeachers}
                 disabled={loading}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
