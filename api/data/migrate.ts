@@ -6,19 +6,35 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
   const user = req.user!;
 
+  console.log('🚀 Migration endpoint called:', {
+    method,
+    user: { username: user.username, role: user.role },
+    bodyKeys: Object.keys(req.body || {}),
+    timestamp: new Date().toISOString()
+  });
+
   // Only admin and manager can migrate data
   if (!['admin', 'manager'].includes(user.role)) {
+    console.log('❌ Migration blocked: insufficient role', user.role);
     return res.status(403).json({ error: 'Only administrators and managers can migrate data' });
   }
 
   if (method !== 'POST') {
+    console.log('❌ Migration blocked: wrong method', method);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const { teachers: importTeachers, attendance: importAttendance, teacher_id_counter } = req.body;
 
+    console.log('📊 Migration data received:', {
+      teachers: importTeachers ? importTeachers.length : 0,
+      attendance: importAttendance ? importAttendance.length : 0,
+      teacher_id_counter
+    });
+
     if (!importTeachers && !importAttendance) {
+      console.log('❌ Migration failed: no data provided');
       return res.status(400).json({ error: 'No data provided for migration' });
     }
 
@@ -27,20 +43,22 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
     // Migrate teachers
     if (importTeachers && Array.isArray(importTeachers)) {
-      // Save imported teachers to persistent storage
+      console.log('💾 Saving teachers to server storage...');
       await saveTeachers(importTeachers);
       migratedTeachers = importTeachers.length;
+      console.log('✅ Teachers saved successfully:', migratedTeachers);
     }
 
     // Migrate attendance
     if (importAttendance && Array.isArray(importAttendance)) {
-      // Save imported attendance to persistent storage
+      console.log('💾 Saving attendance to server storage...');
       await saveAttendance(importAttendance);
       migratedAttendance = importAttendance.length;
+      console.log('✅ Attendance saved successfully:', migratedAttendance);
     }
 
     // Log migration for audit
-    console.log(`Data migration completed by ${user.username}:`);
+    console.log(`✅ Data migration completed by ${user.username}:`);
     console.log(`- Teachers: ${migratedTeachers}`);
     console.log(`- Attendance records: ${migratedAttendance}`);
 
@@ -54,8 +72,8 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
       }
     });
   } catch (error) {
-    console.error('Error during data migration:', error);
-    res.status(500).json({ error: 'Internal server error during migration' });
+    console.error('💥 Error during data migration:', error);
+    res.status(500).json({ error: 'Internal server error during migration', details: error.message });
   }
 }
 

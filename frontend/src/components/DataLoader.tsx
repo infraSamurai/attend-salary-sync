@@ -64,34 +64,60 @@ const DataLoader: React.FC = () => {
 
       // Now migrate the data to the server-side storage via API
       try {
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        const authToken = localStorage.getItem('auth_token');
+        const token = localStorage.getItem('token');
+        const finalToken = authToken || token;
+        
+        console.log('🔍 DEBUG: Migration attempt starting...');
+        console.log('🔑 auth_token:', authToken ? 'exists' : 'missing');
+        console.log('🔑 token:', token ? 'exists' : 'missing');
+        console.log('🔑 final token:', finalToken ? 'exists' : 'missing');
+        console.log('📊 Data to migrate:', {
+          teachers: backupData.teachers?.length || 0,
+          attendance: backupData.attendance?.length || 0,
+          teacher_id_counter: backupData.teacher_id_counter
+        });
+
         const response = await fetch('/api/data/migrate', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${finalToken}`,
           },
           body: JSON.stringify(backupData),
         });
 
+        console.log('🌐 Migration response status:', response.status);
+        console.log('🌐 Migration response headers:', Object.fromEntries(response.headers.entries()));
+
         if (response.ok) {
           const result = await response.json();
-          console.log('Data migrated to server:', result);
+          console.log('✅ Data migrated to server successfully:', result);
           alert(`Data loaded and migrated successfully!\n- ${result.migrated.teachers} teachers\n- ${result.migrated.attendance} attendance records\n\nPlease refresh the page to see the data.`);
         } else {
-          const errorData = await response.json().catch(() => ({}));
-          console.warn('Failed to migrate data to server:', response.status, errorData);
+          const responseText = await response.text();
+          console.error('❌ Migration failed - Response text:', responseText);
+          
+          let errorData = {};
+          try {
+            errorData = JSON.parse(responseText);
+          } catch (e) {
+            console.error('Failed to parse error response as JSON');
+          }
+          
+          console.error('❌ Migration failed:', response.status, errorData);
+          
           if (response.status === 403) {
-            alert("Data loaded to local storage successfully, but server migration failed.\nYou need admin or manager privileges to migrate data to the server.\nPlease login as admin or manager and try again.");
+            alert("Data loaded to local storage successfully, but server migration failed.\nYou need admin or manager privileges to migrate data to the server.\nPlease login as admin or manager and try again.\n\nDEBUG: Check browser console for details.");
           } else if (response.status === 401) {
-            alert("Data loaded to local storage successfully, but server migration failed.\nYou are not logged in. Please login and try again.");
+            alert("Data loaded to local storage successfully, but server migration failed.\nYou are not logged in. Please login and try again.\n\nDEBUG: Check browser console for details.");
           } else {
-            alert(`Data loaded to local storage successfully, but server migration failed.\nError: ${errorData.error || 'Unknown error'}\nPlease check your login status and try again.`);
+            alert(`Data loaded to local storage successfully, but server migration failed.\nError: ${errorData.error || 'Unknown error'}\nStatus: ${response.status}\n\nDEBUG: Check browser console for details.`);
           }
         }
       } catch (migrateError) {
-        console.error('Migration error:', migrateError);
-        alert("Data loaded to local storage successfully, but server migration failed. Please check your connection and try again.");
+        console.error('💥 Migration exception:', migrateError);
+        alert("Data loaded to local storage successfully, but server migration failed. Please check your connection and try again.\n\nDEBUG: Check browser console for details.");
       }
 
       setDataLoaded(true);

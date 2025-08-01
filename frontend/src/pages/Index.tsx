@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Calendar, Users, Calculator, FileText, Settings, LogOut } from "lucide-react";
+import { Calendar, Users, Calculator, FileText, Settings, LogOut, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ import SalaryCalculator from "@/components/SalaryCalculator";
 import Reports from "@/components/Reports";
 import SettingsDialog from "@/components/SettingsDialog";
 import DataLoader from "@/components/DataLoader";
+import StorageDebug from "@/components/StorageDebug";
 import LoginScreen from "@/components/LoginScreen";
 import { useAuth } from "@/contexts/AuthContext";
 import React from "react";
@@ -167,6 +168,12 @@ const Index = () => {
                 <span className="hidden sm:inline">Reports</span>
               </TabsTrigger>
             )}
+            {(user?.role === 'admin' || user?.role === 'manager') && (
+              <TabsTrigger value="debug" className="flex items-center space-x-2">
+                <Database className="w-4 h-4" />
+                <span className="hidden sm:inline">Debug</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {hasPermission('read_attendance') && (
@@ -190,6 +197,12 @@ const Index = () => {
           {hasPermission('read_reports') && (
             <TabsContent value="reports" className="mt-6">
               <Reports />
+            </TabsContent>
+          )}
+
+          {(user?.role === 'admin' || user?.role === 'manager') && (
+            <TabsContent value="debug" className="mt-6">
+              <StorageDebug />
             </TabsContent>
           )}
         </Tabs>

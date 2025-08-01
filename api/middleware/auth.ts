@@ -20,7 +20,15 @@ export function authenticateToken(req: AuthenticatedRequest, res: VercelResponse
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
+  console.log('🔐 Auth Debug - Headers:', {
+    authorization: authHeader ? 'exists' : 'missing',
+    'content-type': req.headers['content-type'],
+    method: req.method,
+    url: req.url
+  });
+
   if (!token) {
+    console.log('❌ Auth failed: No token provided');
     return res.status(401).json({ error: 'Access token required' });
   }
 
@@ -33,10 +41,16 @@ export function authenticateToken(req: AuthenticatedRequest, res: VercelResponse
       name: decoded.name
     };
     
+    console.log('✅ Auth successful:', {
+      username: req.user.username,
+      role: req.user.role,
+      userId: req.user.userId
+    });
+    
     if (next) next();
     return true;
   } catch (error) {
-    console.error('Token verification error:', error);
+    console.error('❌ Token verification error:', error);
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
 }
