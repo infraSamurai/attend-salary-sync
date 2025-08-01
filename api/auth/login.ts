@@ -9,6 +9,13 @@ if (!process.env.JWT_SECRET) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log(`🔐 [AUTH-LOGIN] Request received: ${req.method} ${req.url}`);
+  console.log(`🔐 [AUTH-LOGIN] Request headers:`, {
+    'content-type': req.headers['content-type'],
+    'user-agent': req.headers['user-agent']?.substring(0, 50),
+    timestamp: new Date().toISOString()
+  });
+  
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -16,11 +23,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Handle preflight request
   if (req.method === 'OPTIONS') {
+    console.log(`✅ [AUTH-LOGIN] CORS preflight handled`);
     return res.status(200).end();
   }
 
   // Only allow POST requests
   if (req.method !== 'POST') {
+    console.log(`❌ [AUTH-LOGIN] Method not allowed: ${req.method}`);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 

@@ -33,15 +33,24 @@ export interface UpdateTeacherData {
 // Get all teachers
 export async function getAllTeachers(): Promise<Teacher[]> {
   return withDatabaseErrorHandling(async () => {
-    console.log('📖 Fetching all teachers from database...');
+    console.log('📖 [TEACHER-GET-ALL] Executing SELECT query for all teachers...');
     
+    const startTime = Date.now();
     const result = await sql`
       SELECT id, name, designation, base_salary, join_date, contact, photo, created_at, updated_at 
       FROM teachers 
       ORDER BY id ASC
     `;
+    const queryTime = Date.now() - startTime;
     
-    console.log(`✅ Found ${result.rows.length} teachers in database`);
+    console.log(`✅ [TEACHER-GET-ALL] Query executed in ${queryTime}ms`);
+    console.log(`✅ [TEACHER-GET-ALL] Found ${result.rows.length} teachers in database`);
+    console.log(`📊 [TEACHER-GET-ALL] Sample data:`, result.rows.slice(0, 3).map(t => ({
+      id: t.id,
+      name: t.name,
+      designation: t.designation
+    })));
+    
     return result.rows as Teacher[];
   }, 'getAllTeachers');
 }

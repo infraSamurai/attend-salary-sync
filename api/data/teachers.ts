@@ -28,17 +28,27 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
 async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   try {
-    console.log(`🔍 Fetching teachers for user: ${user.username} (${user.role})`);
+    console.log(`🔍 [API-TEACHERS-GET] Request started`);
+    console.log(`🔍 [API-TEACHERS-GET] User details:`, {
+      username: user.username,
+      role: user.role,
+      userId: user.userId,
+      timestamp: new Date().toISOString()
+    });
     
+    console.log(`🗄️ [API-TEACHERS-GET] Calling database to fetch teachers...`);
     const teachers = await getAllTeachers();
+    console.log(`📊 [API-TEACHERS-GET] Database returned ${teachers.length} teachers`);
+    
     let filteredTeachers = [...teachers];
 
     // Role-based filtering
+    console.log(`🔐 [API-TEACHERS-GET] Applying role-based filtering for role: ${user.role}`);
     switch (user.role) {
       case 'admin':
       case 'manager':
         // Full access to all teacher data
-        console.log(`✅ Admin/Manager access: returning ${teachers.length} teachers`);
+        console.log(`✅ [API-TEACHERS-GET] Admin/Manager access: returning ${teachers.length} teachers`);
         break;
       case 'viewer':
         // Only basic info (name, designation)
@@ -48,23 +58,35 @@ async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: a
           designation: teacher.designation,
           join_date: teacher.join_date
         })) as any;
-        console.log(`✅ Viewer access: returning basic info for ${filteredTeachers.length} teachers`);
+        console.log(`✅ [API-TEACHERS-GET] Viewer access: returning basic info for ${filteredTeachers.length} teachers`);
         break;
       case 'teacher':
         // Only their own data (if they have a teacher record)
         filteredTeachers = teachers.filter(teacher => 
           teacher.name.toLowerCase() === user.name.toLowerCase()
         );
-        console.log(`✅ Teacher access: returning ${filteredTeachers.length} matching teachers`);
+        console.log(`✅ [API-TEACHERS-GET] Teacher access: returning ${filteredTeachers.length} matching teachers`);
         break;
       default:
-        console.log(`❌ Access denied for role: ${user.role}`);
+        console.log(`❌ [API-TEACHERS-GET] Access denied for role: ${user.role}`);
         return res.status(403).json({ error: 'Access denied' });
     }
 
+    console.log(`🎯 [API-TEACHERS-GET] Final response: ${filteredTeachers.length} teachers`);
+    console.log(`🎯 [API-TEACHERS-GET] Response sample:`, filteredTeachers.slice(0, 2).map(t => ({
+      id: t.id,
+      name: t.name
+    })));
+    
     res.status(200).json({ teachers: filteredTeachers });
   } catch (error) {
-    console.error('❌ Error fetching teachers:', error);
+    console.error('❌ [API-TEACHERS-GET] Error fetching teachers:', error);
+    console.error('❌ [API-TEACHERS-GET] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      user: user.username,
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

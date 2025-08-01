@@ -6,9 +6,15 @@ export { sql };
 // Database initialization - creates tables if they don't exist
 export async function initializeDatabase() {
   try {
-    console.log('🗄️ Initializing database tables...');
+    console.log('🗄️ [DB-INIT] Starting database initialization...');
+    console.log('🗄️ [DB-INIT] Environment check:', {
+      hasPostgresUrl: !!process.env.POSTGRES_URL,
+      nodeEnv: process.env.NODE_ENV,
+      timestamp: new Date().toISOString()
+    });
 
     // Create users table
+    console.log('🗄️ [DB-INIT] Creating users table...');
     await sql`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -19,8 +25,10 @@ export async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `;
+    console.log('✅ [DB-INIT] Users table created/verified');
 
     // Create teachers table
+    console.log('🗄️ [DB-INIT] Creating teachers table...');
     await sql`
       CREATE TABLE IF NOT EXISTS teachers (
         id SERIAL PRIMARY KEY,
@@ -34,8 +42,10 @@ export async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `;
+    console.log('✅ [DB-INIT] Teachers table created/verified');
 
     // Create attendance table
+    console.log('🗄️ [DB-INIT] Creating attendance table...');
     await sql`
       CREATE TABLE IF NOT EXISTS attendance (
         id SERIAL PRIMARY KEY,
@@ -47,19 +57,27 @@ export async function initializeDatabase() {
         UNIQUE(teacher_id, date)
       )
     `;
+    console.log('✅ [DB-INIT] Attendance table created/verified');
 
     // Create indexes for better performance
+    console.log('🗄️ [DB-INIT] Creating database indexes...');
     await sql`CREATE INDEX IF NOT EXISTS idx_attendance_teacher_date ON attendance(teacher_id, date)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_teachers_name ON teachers(name)`;
+    console.log('✅ [DB-INIT] Database indexes created/verified');
 
-    console.log('✅ Database tables initialized successfully');
+    console.log('✅ [DB-INIT] Database tables initialized successfully');
     
     // Check if we need to seed default data
     await seedDefaultData();
     
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
+    console.error('❌ [DB-INIT] Database initialization failed:', error);
+    console.error('❌ [DB-INIT] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     throw error;
   }
 }
@@ -67,10 +85,14 @@ export async function initializeDatabase() {
 // Seed default data if tables are empty
 async function seedDefaultData() {
   try {
+    console.log('🌱 [DB-SEED] Checking if default data seeding is needed...');
+    
     // Check if users exist
     const userCount = await sql`SELECT COUNT(*) FROM users`;
+    console.log('🌱 [DB-SEED] Current user count:', userCount.rows[0].count);
+    
     if (userCount.rows[0].count === '0') {
-      console.log('🌱 Seeding default users...');
+      console.log('🌱 [DB-SEED] Seeding default users...');
       
       await sql`
         INSERT INTO users (username, password_hash, role, name) VALUES
@@ -79,13 +101,17 @@ async function seedDefaultData() {
         ('viewer', '$2a$10$SbtpYG17EV7UDe5hnnlKceuQ36ZZFgB4MhFJlll8x/9Ne6kHJqcxu', 'viewer', 'Viewer User')
       `;
       
-      console.log('✅ Default users seeded');
+      console.log('✅ [DB-SEED] Default users seeded successfully');
+    } else {
+      console.log('ℹ️ [DB-SEED] Users already exist, skipping user seeding');
     }
 
     // Check if teachers exist
     const teacherCount = await sql`SELECT COUNT(*) FROM teachers`;
+    console.log('🌱 [DB-SEED] Current teacher count:', teacherCount.rows[0].count);
+    
     if (teacherCount.rows[0].count === '0') {
-      console.log('🌱 Seeding default teachers...');
+      console.log('🌱 [DB-SEED] Seeding default teachers (24 teachers)...');
       
       // Insert the 24 teachers from your backup data
       await sql`
@@ -119,11 +145,18 @@ async function seedDefaultData() {
       // Update the sequence to start from 25
       await sql`SELECT setval('teachers_id_seq', 25, false)`;
       
-      console.log('✅ Default teachers seeded (24 teachers)');
+      console.log('✅ [DB-SEED] Default teachers seeded successfully (24 teachers)');
+    } else {
+      console.log('ℹ️ [DB-SEED] Teachers already exist, skipping teacher seeding');
     }
 
   } catch (error) {
-    console.error('❌ Failed to seed default data:', error);
+    console.error('❌ [DB-SEED] Failed to seed default data:', error);
+    console.error('❌ [DB-SEED] Seed error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     // Don't throw here - the app can still work without default data
   }
 }
@@ -131,11 +164,14 @@ async function seedDefaultData() {
 // Helper function to ensure database is initialized before operations
 export async function ensureDatabaseInitialized() {
   try {
+    console.log('🔍 [DB-CHECK] Checking if database is initialized...');
     // Try a simple query to check if tables exist
     await sql`SELECT 1 FROM teachers LIMIT 1`;
+    console.log('✅ [DB-CHECK] Database tables exist and accessible');
   } catch (error) {
     // If tables don't exist, initialize them
-    console.log('Database tables not found, initializing...');
+    console.log('⚠️ [DB-CHECK] Database tables not found, initializing...');
+    console.log('⚠️ [DB-CHECK] Initialization trigger error:', error instanceof Error ? error.message : 'Unknown error');
     await initializeDatabase();
   }
 }
@@ -146,10 +182,19 @@ export async function withDatabaseErrorHandling<T>(
   operationName: string
 ): Promise<T> {
   try {
+    console.log(`🔄 [DB-OP] Starting operation: ${operationName}`);
     await ensureDatabaseInitialized();
-    return await operation();
+    const result = await operation();
+    console.log(`✅ [DB-OP] Operation completed successfully: ${operationName}`);
+    return result;
   } catch (error) {
-    console.error(`❌ Database operation failed (${operationName}):`, error);
+    console.error(`❌ [DB-OP] Database operation failed (${operationName}):`, error);
+    console.error(`❌ [DB-OP] Operation error details:`, {
+      operation: operationName,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     throw new Error(`Database operation failed: ${operationName}`);
   }
 }
