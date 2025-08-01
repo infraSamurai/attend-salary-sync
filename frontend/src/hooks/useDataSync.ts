@@ -38,22 +38,33 @@ export function useDataSync({
 
   // Get auth token
   const getAuthToken = useCallback(() => {
-    return localStorage.getItem('token');
+    return localStorage.getItem('auth_token') || localStorage.getItem('token');
   }, []);
 
   // Fetch data function
   const fetchData = useCallback(async (showLoading = true) => {
     if (!enabled || !url) return;
 
+    // Don't fetch if no auth token is available
+    const token = getAuthToken();
+    if (!token) {
+      setState(prev => ({ 
+        ...prev, 
+        loading: false, 
+        error: new Error('Not authenticated'),
+        isOnline: true 
+      }));
+      return;
+    }
+
     try {
       if (showLoading) {
         setState(prev => ({ ...prev, loading: true, error: null }));
       }
 
-      const token = getAuthToken();
       const response = await fetch(url, {
         headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });

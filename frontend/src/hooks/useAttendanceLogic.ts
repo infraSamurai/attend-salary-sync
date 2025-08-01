@@ -3,12 +3,13 @@ import { AttendanceRecord, Holiday, Teacher, DayInfo } from "@/types/attendance"
 import { useDataSync } from "./useDataSync";
 import { useAttendanceBroadcast } from "./useBroadcastSync";
 
-export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], currentDate: Date) => {
+export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], currentDate: Date, isAuthenticated = true) => {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
 
   // Use data sync hook for real-time attendance updates
   const { data, loading, error, refresh } = useDataSync({
     url: '/api/data/attendance',
+    enabled: isAuthenticated,
     onData: (responseData) => {
       if (responseData?.attendance) {
         setAttendance(responseData.attendance);
@@ -83,7 +84,7 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
       const response = await fetch('/api/data/attendance', {
         method: 'POST',
         headers: {
@@ -115,7 +116,7 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
     const dateString = date.toISOString().split('T')[0];
     
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
       const promises = teachers.map(teacher => 
         fetch('/api/data/attendance', {
           method: 'POST',
@@ -147,7 +148,7 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
     const dateString = date.toISOString().split('T')[0];
     
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
       const promises = teachers.map(teacher => 
         fetch('/api/data/attendance', {
           method: 'POST',

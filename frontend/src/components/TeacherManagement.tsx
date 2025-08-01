@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import AddTeacherDialog from "./AddTeacherDialog";
 import { useDataSync } from "@/hooks/useDataSync";
 import { useTeacherBroadcast } from "@/hooks/useBroadcastSync";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Teacher {
   id: string;
@@ -35,21 +36,25 @@ const TeacherManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   // Use data sync hook for real-time updates
   const { data, loading, error, lastUpdated, isOnline, refresh } = useDataSync({
     url: '/api/data/teachers',
+    enabled: isAuthenticated,
     onData: (responseData) => {
       if (responseData?.teachers) {
         setTeachers(responseData.teachers);
       }
     },
     onError: (error) => {
-      toast({
-        title: "Sync Error",
-        description: `Failed to sync teachers: ${error.message}`,
-        variant: "destructive",
-      });
+      if (error.message !== 'Not authenticated') {
+        toast({
+          title: "Sync Error",
+          description: `Failed to sync teachers: ${error.message}`,
+          variant: "destructive",
+        });
+      }
     }
   });
 
@@ -73,7 +78,7 @@ const TeacherManagement = () => {
 
   const handleAddTeacher = async (teacherData: Omit<Teacher, "id">) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
       const response = await fetch('/api/data/teachers', {
         method: 'POST',
         headers: {
@@ -109,7 +114,7 @@ const TeacherManagement = () => {
 
   const handleDeleteTeacher = async (id: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
       const response = await fetch(`/api/data/teachers?id=${id}`, {
         method: 'DELETE',
         headers: {

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useAttendanceLogic } from "@/hooks/useAttendanceLogic";
 import { useDataSync } from "@/hooks/useDataSync";
+import { useAuth } from "@/contexts/AuthContext";
 import { Teacher, Holiday } from "@/types/attendance";
 import HolidayManager from "./HolidayManager";
 import CalendarNavigation from "./attendance/CalendarNavigation";
@@ -19,10 +20,12 @@ const AttendanceCalendar = () => {
     { date: new Date(2024, 2, 13).toISOString(), name: "Holi", type: "festival" },
   ]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const { isAuthenticated } = useAuth();
 
   // Use data sync hook for teachers
   const { data: teachersData, loading: teachersLoading, isOnline, refresh: refreshTeachers } = useDataSync({
     url: '/api/data/teachers',
+    enabled: isAuthenticated,
     onData: (responseData) => {
       if (responseData?.teachers) {
         setTeachers(responseData.teachers);
@@ -40,7 +43,7 @@ const AttendanceCalendar = () => {
     getMonthStats,
     loading: attendanceLoading,
     refresh: refreshAttendance
-  } = useAttendanceLogic(teachers, holidays, currentDate);
+  } = useAttendanceLogic(teachers, holidays, currentDate, isAuthenticated);
 
   const stats = getMonthStats();
 
