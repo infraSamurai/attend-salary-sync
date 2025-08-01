@@ -6,9 +6,9 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
   const user = req.user!;
 
-  // Only admin can migrate data
-  if (user.role !== 'admin') {
-    return res.status(403).json({ error: 'Only administrators can migrate data' });
+  // Only admin and manager can migrate data
+  if (!['admin', 'manager'].includes(user.role)) {
+    return res.status(403).json({ error: 'Only administrators and managers can migrate data' });
   }
 
   if (method !== 'POST') {
@@ -59,5 +59,5 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   }
 }
 
-// Export the handler with authentication middleware (admin only)
-export default withAuth(handler, ['admin']);
+// Export the handler with authentication middleware (admin and manager)
+export default withAuth(handler, ['admin', 'manager']);

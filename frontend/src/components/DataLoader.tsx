@@ -79,8 +79,15 @@ const DataLoader: React.FC = () => {
           console.log('Data migrated to server:', result);
           alert(`Data loaded and migrated successfully!\n- ${result.migrated.teachers} teachers\n- ${result.migrated.attendance} attendance records\n\nPlease refresh the page to see the data.`);
         } else {
-          console.warn('Failed to migrate data to server, but LocalForage data is available');
-          alert("Data loaded to local storage successfully, but server migration failed. Please check your login status and try again.");
+          const errorData = await response.json().catch(() => ({}));
+          console.warn('Failed to migrate data to server:', response.status, errorData);
+          if (response.status === 403) {
+            alert("Data loaded to local storage successfully, but server migration failed.\nYou need admin or manager privileges to migrate data to the server.\nPlease login as admin or manager and try again.");
+          } else if (response.status === 401) {
+            alert("Data loaded to local storage successfully, but server migration failed.\nYou are not logged in. Please login and try again.");
+          } else {
+            alert(`Data loaded to local storage successfully, but server migration failed.\nError: ${errorData.error || 'Unknown error'}\nPlease check your login status and try again.`);
+          }
         }
       } catch (migrateError) {
         console.error('Migration error:', migrateError);
