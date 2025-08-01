@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { requestManager } from '@/utils/requestManager';
 
 interface SyncOptions {
   url: string;
@@ -63,7 +62,7 @@ export function useDataSync({
         setState(prev => ({ ...prev, loading: true, error: null }));
       }
 
-      const response = await requestManager.makeRequest(url, {
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
