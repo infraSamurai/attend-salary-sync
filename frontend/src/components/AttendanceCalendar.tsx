@@ -1,9 +1,10 @@
 import React from "react";
 import { useState, useEffect } from "react";
-import localforage from "localforage";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useAttendanceLogic } from "@/hooks/useAttendanceLogic";
+import { useDataSync } from "@/hooks/useDataSync";
 import { Teacher, Holiday } from "@/types/attendance";
 import HolidayManager from "./HolidayManager";
 import CalendarNavigation from "./attendance/CalendarNavigation";
@@ -18,14 +19,16 @@ const AttendanceCalendar = () => {
     { date: new Date(2024, 2, 13).toISOString(), name: "Holi", type: "festival" },
   ]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    localforage.getItem<Teacher[]>("teachers").then((data) => {
-      setTeachers(data || []);
-      setLoading(false);
-    });
-  }, []);
+  // Use data sync hook for teachers
+  const { data: teachersData, loading: teachersLoading, isOnline, refresh: refreshTeachers } = useDataSync({
+    url: '/api/data/teachers',
+    onData: (responseData) => {
+      if (responseData?.teachers) {
+        setTeachers(responseData.teachers);
+      }
+    }
+  });
 
   const {
     days,
@@ -34,7 +37,9 @@ const AttendanceCalendar = () => {
     toggleAttendance,
     markAllPresentForDay,
     markAllAbsentForDay,
-    getMonthStats
+    getMonthStats,
+    loading: attendanceLoading,
+    refresh: refreshAttendance
   } = useAttendanceLogic(teachers, holidays, currentDate);
 
   const stats = getMonthStats();
@@ -45,7 +50,17 @@ const AttendanceCalendar = () => {
     setCurrentDate(newDate);
   };
 
-  if (loading) return <div>Loading teachers...</div>;
+  const handleRefresh = () => {
+    refreshTeachers();
+    refreshAttendance();
+  };
+
+  if (teachersLoading && teachers.length === 0) return (
+    <div className="flex items-center justify-center p-8">
+      <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+      Loading teachers...
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -61,12 +76,31 @@ const AttendanceCalendar = () => {
               <CardTitle className="flex items-center space-x-2">
                 <CalendarIcon className="w-5 h-5" />
                 <span>Attendance Calendar</span>
+                {!isOnline && <WifiOff className="w-4 h-4 text-red-500" />}
+                {isOnline && <Wifi className="w-4 h-4 text-green-500" />}
               </CardTitle>
-              <CardDescription>
-                Mark daily attendance for all teachers
+              <CardDescription className="flex flex-col">
+                <span>Mark daily attendance for all teachers</span>
+                {attendanceLoading && (
+                  <div className="flex items-center mt-1 text-xs text-muted-foreground">
+                    <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                    Syncing attendance data...
+                  </div>
+                )}
               </CardDescription>
             </div>
-            <AttendanceStats teachers={teachers} attendanceRate={stats.attendanceRate} totalLate={stats.totalLate} />
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleRefresh}
+                disabled={attendanceLoading || teachersLoading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${(attendanceLoading || teachersLoading) ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <AttendanceStats teachers={teachers} attendanceRate={stats.attendanceRate} totalLate={stats.totalLate} />
+            </div>
           </div>
         </CardHeader>
         <CardContent>

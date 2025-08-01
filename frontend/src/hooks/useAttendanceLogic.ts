@@ -1,21 +1,33 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AttendanceRecord, Holiday, Teacher, DayInfo } from "@/types/attendance";
-import localforage from "localforage";
+import { useDataSync } from "./useDataSync";
+import { useAttendanceBroadcast } from "./useBroadcastSync";
 
 export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], currentDate: Date) => {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
 
-  // Load attendance from localForage on mount
-  useEffect(() => {
-    localforage.getItem<AttendanceRecord[]>("attendance").then((data) => {
-      if (data) setAttendance(data);
-    });
-  }, []);
+  // Use data sync hook for real-time attendance updates
+  const { data, loading, error, refresh } = useDataSync({
+    url: '/api/data/attendance',
+    onData: (responseData) => {
+      if (responseData?.attendance) {
+        setAttendance(responseData.attendance);
+      }
+    }
+  });
 
-  // Save attendance to localForage whenever it changes
+  // Use broadcast channel for same-device synchronization
+  const { broadcast } = useAttendanceBroadcast();
+
+  // Listen for broadcast messages from other tabs
   useEffect(() => {
-    localforage.setItem("attendance", attendance);
-  }, [attendance]);
+    const handleAttendanceChanged = () => {
+      refresh(); // Refresh data when other tabs make changes
+    };
+
+    window.addEventListener('attendance-changed', handleAttendanceChanged);
+    return () => window.removeEventListener('attendance-changed', handleAttendanceChanged);
+  }, [refresh]);
 
   const getDaysInMonth = (date: Date): DayInfo[] => {
     const year = date.getFullYear();
@@ -51,78 +63,117 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
     return record?.status;
   };
 
-  const toggleAttendance = (teacherId: string, date: Date) => {
-    const dateString = date.toISOString();
-    const existingIndex = attendance.findIndex(
+  const toggleAttendance = useCallback(async (teacherId: string, date: Date) => {
+    const dateString = date.toISOString().split('T')[0]; // Use YYYY-MM-DD format
+    const existingRecord = attendance.find(
       a => a.teacherId === teacherId && a.date === dateString
     );
 
-    if (existingIndex >= 0) {
-      const updated = [...attendance];
-      const current = updated[existingIndex].status;
+    let newStatus = 'present';
+    if (existingRecord) {
+      const current = existingRecord.status;
       // Cycle: absent -> present -> late -> absent
       if (current === 'absent') {
-        updated[existingIndex].status = 'present';
+        newStatus = 'present';
       } else if (current === 'present') {
-        updated[existingIndex].status = 'late';
+        newStatus = 'late';
       } else {
-        updated[existingIndex].status = 'absent';
+        newStatus = 'absent';
       }
-      setAttendance(updated);
-    } else {
-      setAttendance([...attendance, {
-        teacherId,
-        date: dateString,
-        status: 'present'
-      }]);
     }
-  };
 
-  const markAllPresentForDay = (date: Date) => {
-    const dateString = date.toISOString();
-    const updated = [...attendance];
-    
-    teachers.forEach(teacher => {
-      const existingIndex = updated.findIndex(
-        a => a.teacherId === teacher.id && a.date === dateString
-      );
-      
-      if (existingIndex >= 0) {
-        updated[existingIndex].status = 'present';
-      } else {
-        updated.push({
-          teacherId: teacher.id,
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/data/attendance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          teacherId,
           date: dateString,
-          status: 'present'
-        });
-      }
-    });
-    
-    setAttendance(updated);
-  };
+          status: newStatus
+        }),
+      });
 
-  const markAllAbsentForDay = (date: Date) => {
-    const dateString = date.toISOString();
-    const updated = [...attendance];
-    
-    teachers.forEach(teacher => {
-      const existingIndex = updated.findIndex(
-        a => a.teacherId === teacher.id && a.date === dateString
-      );
-      
-      if (existingIndex >= 0) {
-        updated[existingIndex].status = 'absent';
-      } else {
-        updated.push({
-          teacherId: teacher.id,
-          date: dateString,
-          status: 'absent'
-        });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-    });
+
+      // Broadcast the change to other tabs
+      broadcast('attendance-updated', { teacherId, date: dateString, status: newStatus });
+      
+      // Refresh data to get latest state
+      refresh();
+    } catch (error) {
+      console.error('Failed to update attendance:', error);
+    }
+  }, [attendance, broadcast, refresh]);
+
+  const markAllPresentForDay = useCallback(async (date: Date) => {
+    const dateString = date.toISOString().split('T')[0];
     
-    setAttendance(updated);
-  };
+    try {
+      const token = localStorage.getItem('token');
+      const promises = teachers.map(teacher => 
+        fetch('/api/data/attendance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({
+            teacherId: teacher.id,
+            date: dateString,
+            status: 'present'
+          }),
+        })
+      );
+
+      await Promise.all(promises);
+      
+      // Broadcast the change to other tabs
+      broadcast('attendance-updated', { date: dateString, status: 'present', bulk: true });
+      
+      // Refresh data to get latest state
+      refresh();
+    } catch (error) {
+      console.error('Failed to mark all present:', error);
+    }
+  }, [teachers, broadcast, refresh]);
+
+  const markAllAbsentForDay = useCallback(async (date: Date) => {
+    const dateString = date.toISOString().split('T')[0];
+    
+    try {
+      const token = localStorage.getItem('token');
+      const promises = teachers.map(teacher => 
+        fetch('/api/data/attendance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({
+            teacherId: teacher.id,
+            date: dateString,
+            status: 'absent'
+          }),
+        })
+      );
+
+      await Promise.all(promises);
+      
+      // Broadcast the change to other tabs
+      broadcast('attendance-updated', { date: dateString, status: 'absent', bulk: true });
+      
+      // Refresh data to get latest state
+      refresh();
+    } catch (error) {
+      console.error('Failed to mark all absent:', error);
+    }
+  }, [teachers, broadcast, refresh]);
 
   const getMonthStats = () => {
     const totalWorkingDays = days.filter(d => !d.isSunday).length;
@@ -241,6 +292,9 @@ export const useAttendanceLogic = (teachers: Teacher[], holidays: Holiday[], cur
     toggleAttendance,
     markAllPresentForDay,
     markAllAbsentForDay,
-    getMonthStats
+    getMonthStats,
+    loading,
+    error,
+    refresh
   };
 };

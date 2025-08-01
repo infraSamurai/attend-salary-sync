@@ -1,8 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withAuth, type AuthenticatedRequest } from '../middleware/auth';
-
-// Temporary in-memory storage (will be replaced with database)
-let attendance: any[] = [];
+import { getAttendance, addOrUpdateAttendance, deleteAttendance } from '../utils/storage';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
@@ -25,6 +23,7 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 async function handleGet(req: AuthenticatedRequest, res: VercelResponse, user: any) {
   try {
     const { teacherId, startDate, endDate } = req.query;
+    const attendance = await getAttendance();
     let filteredAttendance = [...attendance];
 
     // Role-based filtering
@@ -84,11 +83,6 @@ async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: 
       return res.status(400).json({ error: 'Status must be present, absent, or late' });
     }
 
-    // Check if attendance record already exists
-    const existingIndex = attendance.findIndex(
-      record => record.teacherId === teacherId && record.date === date
-    );
-
     const attendanceRecord = {
       teacherId,
       date,
@@ -97,15 +91,8 @@ async function handlePost(req: AuthenticatedRequest, res: VercelResponse, user: 
       updatedAt: new Date().toISOString()
     };
 
-    if (existingIndex !== -1) {
-      // Update existing record
-      attendance[existingIndex] = { ...attendance[existingIndex], ...attendanceRecord };
-      res.status(200).json({ attendance: attendance[existingIndex] });
-    } else {
-      // Create new record
-      attendance.push(attendanceRecord);
-      res.status(201).json({ attendance: attendanceRecord });
-    }
+    const savedRecord = await addOrUpdateAttendance(attendanceRecord);
+    res.status(200).json({ attendance: savedRecord });
   } catch (error) {
     console.error('Error adding attendance:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -125,22 +112,16 @@ async function handlePut(req: AuthenticatedRequest, res: VercelResponse, user: a
       return res.status(400).json({ error: 'Teacher ID and date are required' });
     }
 
-    const recordIndex = attendance.findIndex(
-      record => record.teacherId === teacherId && record.date === date
-    );
-
-    if (recordIndex === -1) {
-      return res.status(404).json({ error: 'Attendance record not found' });
-    }
-
-    attendance[recordIndex] = {
-      ...attendance[recordIndex],
+    const attendanceRecord = {
+      teacherId,
+      date,
       status,
       updatedBy: user.username,
       updatedAt: new Date().toISOString()
     };
 
-    res.status(200).json({ attendance: attendance[recordIndex] });
+    const updatedRecord = await addOrUpdateAttendance(attendanceRecord);
+    res.status(200).json({ attendance: updatedRecord });
   } catch (error) {
     console.error('Error updating attendance:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -156,15 +137,11 @@ async function handleDelete(req: AuthenticatedRequest, res: VercelResponse, user
   try {
     const { teacherId, date } = req.query;
 
-    const recordIndex = attendance.findIndex(
-      record => record.teacherId === teacherId && record.date === date
-    );
-
-    if (recordIndex === -1) {
+    const deleted = await deleteAttendance(teacherId as string, date as string);
+    if (!deleted) {
       return res.status(404).json({ error: 'Attendance record not found' });
     }
 
-    attendance.splice(recordIndex, 1);
     res.status(200).json({ message: 'Attendance record deleted successfully' });
   } catch (error) {
     console.error('Error deleting attendance:', error);
