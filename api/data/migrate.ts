@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withAuth, type AuthenticatedRequest } from '../middleware/auth';
 import { saveTeachers, saveAttendance } from '../utils/storage';
+import { setGlobalTeacherIdCounter } from '../utils/globalStorage';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
@@ -57,10 +58,18 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
       console.log('✅ Attendance saved successfully:', migratedAttendance);
     }
 
+    // Migrate teacher ID counter
+    if (teacher_id_counter) {
+      console.log('💾 Setting teacher ID counter:', teacher_id_counter);
+      setGlobalTeacherIdCounter(teacher_id_counter);
+      console.log('✅ Teacher ID counter set successfully');
+    }
+
     // Log migration for audit
     console.log(`✅ Data migration completed by ${user.username}:`);
     console.log(`- Teachers: ${migratedTeachers}`);
     console.log(`- Attendance records: ${migratedAttendance}`);
+    console.log(`- Teacher ID counter: ${teacher_id_counter || 'not provided'}`);
 
     res.status(200).json({ 
       success: true,

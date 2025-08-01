@@ -1,5 +1,14 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { 
+  getGlobalTeachers, 
+  setGlobalTeachers, 
+  getGlobalAttendance, 
+  setGlobalAttendance,
+  getGlobalTeacherIdCounter,
+  setGlobalTeacherIdCounter,
+  getGlobalStorageStatus
+} from './globalStorage';
 
 const DATA_DIR = '/tmp';
 const TEACHERS_FILE = path.join(DATA_DIR, 'teachers.json');
@@ -42,9 +51,13 @@ async function ensureDataDir() {
 async function readJsonFile<T>(filePath: string, defaultData: T): Promise<T> {
   try {
     await ensureDataDir();
+    console.log('📂 Reading file:', filePath);
     const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
-  } catch {
+    const parsed = JSON.parse(data);
+    console.log('📄 File read successfully, size:', data.length, 'characters');
+    return parsed;
+  } catch (error) {
+    console.log('📂 File not found or invalid, using default data for:', filePath);
     // File doesn't exist or is invalid, return default data
     await writeJsonFile(filePath, defaultData);
     return defaultData;
@@ -54,29 +67,44 @@ async function readJsonFile<T>(filePath: string, defaultData: T): Promise<T> {
 async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
   try {
     await ensureDataDir();
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    const jsonString = JSON.stringify(data, null, 2);
+    console.log('💾 Writing file:', filePath, 'size:', jsonString.length, 'characters');
+    await fs.writeFile(filePath, jsonString);
+    console.log('✅ File written successfully:', filePath);
   } catch (error) {
-    console.error('Error writing JSON file:', error);
+    console.error('❌ Error writing JSON file:', filePath, error);
     throw error;
   }
 }
 
 // Teachers storage
 export async function getTeachers(): Promise<any[]> {
-  return readJsonFile(TEACHERS_FILE, DEFAULT_TEACHERS);
+  console.log('🌍 Global storage status:', getGlobalStorageStatus());
+  return getGlobalTeachers();
 }
 
 export async function saveTeachers(teachers: any[]): Promise<void> {
-  await writeJsonFile(TEACHERS_FILE, teachers);
+  console.log('💾 saveTeachers() saving:', teachers.length, 'teachers to global storage');
+  setGlobalTeachers(teachers);
+  
+  // Also try to save to file for debugging
+  try {
+    await writeJsonFile(TEACHERS_FILE, teachers);
+    console.log('✅ Also saved to file system');
+  } catch (error) {
+    console.error('❌ File storage failed, but global storage succeeded:', error);
+  }
 }
 
 export async function addTeacher(teacher: any): Promise<any> {
   const teachers = await getTeachers();
+  const counter = getGlobalTeacherIdCounter();
   const newTeacher = {
     ...teacher,
-    id: Date.now().toString(),
+    id: counter.toString(),
   };
   teachers.push(newTeacher);
+  setGlobalTeacherIdCounter(counter + 1);
   await saveTeachers(teachers);
   return newTeacher;
 }
@@ -104,11 +132,20 @@ export async function deleteTeacher(id: string): Promise<boolean> {
 
 // Attendance storage
 export async function getAttendance(): Promise<any[]> {
-  return readJsonFile(ATTENDANCE_FILE, DEFAULT_ATTENDANCE);
+  return getGlobalAttendance();
 }
 
 export async function saveAttendance(attendance: any[]): Promise<void> {
-  await writeJsonFile(ATTENDANCE_FILE, attendance);
+  console.log('💾 saveAttendance() saving:', attendance.length, 'records to global storage');
+  setGlobalAttendance(attendance);
+  
+  // Also try to save to file for debugging
+  try {
+    await writeJsonFile(ATTENDANCE_FILE, attendance);
+    console.log('✅ Also saved to file system');
+  } catch (error) {
+    console.error('❌ File storage failed, but global storage succeeded:', error);
+  }
 }
 
 export async function addOrUpdateAttendance(attendanceRecord: any): Promise<any> {
