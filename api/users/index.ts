@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { withAuth, type AuthenticatedRequest } from '../../lib/middleware/auth';
+import { withAuth, type AuthenticatedRequest } from './_lib/middleware/auth';
 import bcrypt from 'bcryptjs';
 
 // Temporary in-memory user store (will be replaced with database)
