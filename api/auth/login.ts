@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
-import { verifyPassword } from './_lib/models/User';
+import { verifyPassword } from '../_lib/models/User';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-change-in-production';
 

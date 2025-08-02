@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { withAuth, type AuthenticatedRequest } from './_lib/middleware/auth';
+import { withAuth, type AuthenticatedRequest } from '../_lib/middleware/auth';
 import {
   getAllAttendance,
   getAttendanceByTeacherId,
   getAttendanceByDateRange,
   upsertAttendance,
   deleteAttendanceByTeacherAndDate
-} from './_lib/models/Attendance';
+} from '../_lib/models/Attendance';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
