@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { withAuth, type AuthenticatedRequest } from '../middleware/auth';
-import { bulkInsertTeachers, getTeacherCount } from '../models/Teacher';
-import { bulkInsertAttendance, getAttendanceCount } from '../models/Attendance';
-import { initializeDatabase } from '../utils/database';
+import { withAuth, type AuthenticatedRequest } from '../../lib/middleware/auth';
+import { bulkInsertTeachers, getTeacherCount } from '../../lib/models/Teacher';
+import { bulkInsertAttendance, getAttendanceCount } from '../../lib/models/Attendance';
+import { initializeDatabase } from '../../lib/utils/database';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;

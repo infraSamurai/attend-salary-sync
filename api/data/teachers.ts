@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { withAuth, type AuthenticatedRequest } from '../middleware/auth';
+import { withAuth, type AuthenticatedRequest } from '../../lib/middleware/auth';
 import { 
   getAllTeachers, 
   createTeacher, 
   updateTeacher as updateTeacherInDB, 
   deleteTeacher as deleteTeacherFromDB,
   getTeacherById
-} from '../models/Teacher';
+} from '../../lib/models/Teacher';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { method } = req;
